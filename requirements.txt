@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-socketio
+pandas
+openpyxl
+xlrd
+rapidfuzz
+pydantic

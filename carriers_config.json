@@ -1,0 +1,82 @@
+{
+  "finalCols": [
+    "Numero_Documento",
+    "NOMBRE TARIFARIO",
+    "Guia",
+    "Numero Unidades",
+    "Estado",
+    "Fec_Entrega",
+    "Fec_AproxEntrega",
+    "Transportador",
+    "Fecha de captura de guia",
+    "Destinatario",
+    "Ciudad Destino",
+    "MES",
+    "ON TIME",
+    "ON TIME (SI=1 Y NO=0)",
+    "CANAL"
+  ],
+  "carriers": [
+    {
+      "id": "solistica",
+      "name": "Solistica",
+      "color": "#4f6ef7",
+      "isStatic": true,
+      "header_row": 4,
+      "mapping": {
+        "Numero_Documento": "DOCUMENTO NRO 1",
+        "NOMBRE TARIFARIO": "NOMBRE TARIFARIO",
+        "Guia": "REMESA",
+        "Numero Unidades": "TOTAL CAJAS",
+        "Estado": "NOMBRE DEL ESTADO",
+        "Fec_Entrega": "FECHA ENTREGA",
+        "Fec_AproxEntrega": "FECHA DE ENTREGA PROMETIDA",
+        "Fecha de captura de guia": "FECHA ELABORACIÓN",
+        "Destinatario": "DESTINATARIO",
+        "Ciudad Destino": "CIUDAD DESTINO",
+        "CANAL": "CAUSAL"
+      }
+    },
+    {
+      "id": "coordinadora",
+      "name": "Coordinadora",
+      "color": "#22c55e",
+      "isStatic": true,
+      "ontime_mode": "column",
+      "ontime_col": "Eficiencia",
+      "ontime_val": "A tiempo",
+      "mapping": {
+        "Numero_Documento": "Documento",
+        "NOMBRE TARIFARIO": "Division",
+        "Guia": "Codigo remision",
+        "Numero Unidades": "Unidades",
+        "Estado": "Estado",
+        "Fec_Entrega": "Fecha entrega",
+        "Fec_AproxEntrega": "Fecha entrega",
+        "Fecha de captura de guia": "Fecha recogida",
+        "Destinatario": "Nombre destinatario",
+        "Ciudad Destino": "Term destino",
+        "CANAL": ""
+      }
+    },
+    {
+      "id": "internacional",
+      "name": "Internacional",
+      "color": "#f59e0b",
+      "isStatic": true,
+      "mapping": {
+        "Numero_Documento": "Codigo identificador",
+        "NOMBRE TARIFARIO": "Remitente",
+        "Guia": "Guia",
+        "Numero Unidades": "Cantidad",
+        "Estado": "Estado",
+        "Fec_Entrega": "Fecha reparto",
+        "Fec_AproxEntrega": "Fecha estimada",
+        "Fecha de captura de guia": "En sistema",
+        "Destinatario": "Destinatario",
+        "Ciudad Destino": "Ciudad",
+        "CANAL": ""
+      }
+    }
+  ]
+}
