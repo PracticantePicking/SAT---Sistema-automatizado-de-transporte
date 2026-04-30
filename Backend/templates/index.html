@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transportadores v2 — Prebel</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0b0d14;--surface:#12151e;--surface2:#181c28;--surface3:#1e2333;
+  --border:#242838;--border2:#2c3248;
+  --accent:#5b6ef5;--accent2:#8b5cf6;--accent3:#06b6d4;
+  --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--pink:#ec4899;
+  --text:#eaecf4;--text2:#a0aabf;--text3:#6b7494;
+  --radius:10px;--t:.18s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.shell{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px;position:fixed;top:0;left:0;height:100vh;z-index:50}
+.main-content{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:40}
+.page-body{flex:1;padding:24px;max-width:1400px;width:100%}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;padding:4px 8px}
+.brand-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.brand-name{font-size:15px;font-weight:800;letter-spacing:.02em}
+.brand-ver{font-size:13px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.nav-label{font-size:13px;color:var(--text3);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:0 8px;margin-bottom:6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:var(--t);border:1px solid transparent;margin-bottom:2px;font-size:15px;font-weight:600;color:var(--text2)}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:rgba(91,110,245,.12);border-color:rgba(91,110,245,.25);color:var(--accent)}
+.nav-icon{font-size:17px;width:20px;text-align:center}
+.nav-spacer{flex:1}
+.server-pill{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:13px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:var(--t)}
+.sdot.on{background:var(--green);box-shadow:0 0 7px var(--green)}
+.sdot.off{background:var(--red)}
+.page-title{font-size:17px;font-weight:800;letter-spacing:-.01em}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.loading-bar{height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));position:fixed;top:0;left:0;z-index:200;display:none}
+.loading-bar.indeterminate{display:block;animation:indeterminate 1.4s infinite;width:30%!important}
+@keyframes indeterminate{0%{left:-30%;width:30%}100%{left:100%;width:30%}}
+.page{display:none}.page.active{display:block}
+.section-title{font-size:20px;font-weight:800;margin-bottom:4px;letter-spacing:-.01em}
+.section-sub{font-size:14px;color:var(--text2);margin-bottom:20px}
+.stats-row{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.stat-chip{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:120px}
+.stat-v{font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1}
+.stat-l{font-size:13px;color:var(--text2);margin-top:3px}
+.stat-chip.accent{border-color:rgba(91,110,245,.3);background:rgba(91,110,245,.06)}
+.stat-chip.green{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.06)}
+.stat-chip.red{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.card-title{font-size:15px;font-weight:700}
+.carriers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;margin-bottom:22px}
+.carrier-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;transition:var(--t)}
+.carrier-card:hover{border-color:var(--border2)}
+.carrier-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.carrier-info{display:flex;align-items:center;gap:9px}
+.cdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cname{font-size:15px;font-weight:700}
+.cbadge{font-size:13px;padding:2px 7px;border-radius:20px;font-family:'JetBrains Mono',monospace;background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+.cbadge.custom{color:var(--accent);border-color:var(--accent);background:rgba(91,110,245,.08)}
+.drop-zones{display:flex;flex-direction:column;gap:7px}
+.dz{border:1px dashed var(--border2);border-radius:8px;padding:10px 12px;cursor:pointer;transition:var(--t);position:relative;display:flex;align-items:center;gap:9px;min-height:42px}
+.dz:hover,.dz.over{border-color:var(--accent);background:rgba(91,110,245,.05)}
+.dz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:15px;color:var(--text3);flex-shrink:0}
+.dz-label{font-size:14px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dz-label.loaded{color:var(--text)}
+.dz-clear{width:17px;height:17px;border-radius:4px;border:none;background:rgba(239,68,68,.15);color:var(--red);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:2;position:relative;transition:var(--t)}
+.dz-clear:hover{background:rgba(239,68,68,.3)}
+.add-file-btn{border:1px dashed var(--border);border-radius:7px;padding:7px;cursor:pointer;background:transparent;color:var(--text3);font-size:13px;font-family:'Inter',sans-serif;width:100%;display:flex;align-items:center;justify-content:center;gap:5px;transition:var(--t)}
+.add-file-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(91,110,245,.05)}
+.del-carrier-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:var(--t)}
+.del-carrier-btn:hover{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.08)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:8px;padding:11px 24px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:var(--t);display:flex;align-items:center;gap:7px;letter-spacing:.03em}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-secondary{background:var(--surface);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:9px 16px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:var(--t);display:flex;align-items:center;gap:6px}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:9px 16px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:var(--t)}
+.btn-danger:hover{background:rgba(239,68,68,.1)}
+.btn-sm{padding:6px 12px;font-size:13px}
+.action-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.progress-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px;display:none}
+.progress-card.visible{display:block}
+.progress-label{font-size:15px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between}
+.progress-track{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width .4s ease;width:0%}
+.progress-msg{font-size:13px;color:var(--text2);margin-top:8px;font-family:'JetBrains Mono',monospace;min-height:16px}
+.table-wrap{overflow-x:auto;max-height:400px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+thead th{background:var(--surface2);padding:9px 12px;text-align:left;font-size:13px;color:var(--text2);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border);position:sticky;top:0;font-family:'JetBrains Mono',monospace;letter-spacing:.04em}
+tbody tr{border-bottom:1px solid var(--border);transition:var(--t)}
+tbody tr:hover{background:var(--surface2)}
+tbody td{padding:7px 12px;color:var(--text2);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+tbody td.hl{color:var(--text);font-weight:600}
+.badge{padding:2px 8px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500}
+.b-si{background:rgba(34,197,94,.12);color:var(--green)}
+.b-no{background:rgba(239,68,68,.1);color:var(--red)}
+.b-ne{background:rgba(245,158,11,.1);color:var(--yellow)}
+.calidad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px}
+.calidad-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.calidad-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.calidad-name{font-size:15px;font-weight:700}
+.score-badge{font-size:14px;font-weight:800;font-family:'JetBrains Mono',monospace;padding:3px 10px;border-radius:6px}
+.score-high{background:rgba(34,197,94,.12);color:var(--green)}
+.score-mid{background:rgba(245,158,11,.12);color:var(--yellow)}
+.score-low{background:rgba(239,68,68,.12);color:var(--red)}
+.calidad-issues{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.issue-item{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:7px;font-size:13px}
+.issue-info{background:rgba(91,110,245,.08);border:1px solid rgba(91,110,245,.15)}
+.issue-warning{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15)}
+.issue-error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15)}
+.issue-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.issue-msg{font-weight:600;color:var(--text)}
+.issue-det{color:var(--text2);margin-top:2px;font-size:13px}
+.mapeo-modal-body{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto;padding-right:4px}
+.mapeo-row{display:grid;grid-template-columns:160px 24px 1fr;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.mapeo-row:last-child{border-bottom:none}
+.final-col-tag{font-size:13px;font-weight:600;padding:4px 8px;background:var(--surface2);border-radius:5px;font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mapeo-arrow{color:var(--text3);text-align:center;font-size:15px}
+.mapeo-select{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 9px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;width:100%;outline:none;transition:var(--t)}
+.mapeo-select:focus{border-color:var(--accent)}
+.score-pill{font-size:13px;padding:1px 6px;border-radius:10px;font-family:'JetBrains Mono',monospace;margin-left:4px}
+.score-high-pill{background:rgba(34,197,94,.15);color:var(--green)}
+.score-mid-pill{background:rgba(245,158,11,.15);color:var(--yellow)}
+.score-low-pill{background:rgba(239,68,68,.15);color:var(--red)}
+.config-layout{display:grid;grid-template-columns:240px 1fr;gap:16px}
+.cfg-sidebar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.cfg-sidebar-hdr{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em}
+.cfg-list{padding:6px}
+.cfg-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;cursor:pointer;transition:var(--t);border:1px solid transparent;margin-bottom:2px}
+.cfg-item:hover{background:var(--surface2)}
+.cfg-item.active{background:rgba(91,110,245,.1);border-color:rgba(91,110,245,.2)}
+.cfg-item-name{font-size:14px;font-weight:600;flex:1}
+.cfg-item-tag{font-size:13px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.add-carrier-btn-cfg{margin:6px;border:1px dashed var(--border2);border-radius:7px;padding:9px;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;background:transparent;color:var(--text3);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;transition:var(--t);width:calc(100% - 12px)}
+.add-carrier-btn-cfg:hover{border-color:var(--accent);color:var(--accent);background:rgba(91,110,245,.05)}
+.cfg-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.mapping-input{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;width:100%;min-width:160px;transition:var(--t);outline:none}
+.mapping-input:focus{border-color:var(--accent)}
+.mapping-input::placeholder{color:var(--text3)}
+.mapping-table{width:100%;border-collapse:collapse}
+.mapping-table th{text-align:left;padding:7px 10px;font-size:13px;color:var(--text2);font-weight:600;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)}
+.mapping-table td{padding:5px 7px;border-bottom:1px solid var(--border)}
+.mapping-table tr:last-child td{border-bottom:none}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;margin-bottom:20px}
+.dash-chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.dash-chart-title{font-size:15px;font-weight:700;margin-bottom:16px;color:var(--text)}
+.chart-container{position:relative;height:220px}
+.hist-table{width:100%;border-collapse:collapse}
+.hist-table th{text-align:left;padding:10px 14px;font-size:13px;color:var(--text2);font-weight:600;font-family:'JetBrains Mono',monospace;border-bottom:1px solid var(--border);background:var(--surface2)}
+.hist-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:14px;color:var(--text2)}
+.hist-table tr:hover td{background:var(--surface2)}
+.hist-carriers{display:flex;gap:4px;flex-wrap:wrap}
+.hist-carrier-tag{font-size:13px;padding:2px 7px;border-radius:20px;background:var(--surface3);color:var(--text2);border:1px solid var(--border2);font-family:'JetBrains Mono',monospace}
+.watch-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.watch-status{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 16px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)}
+.watch-status.active{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.05)}
+.watch-log{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;height:220px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2)}
+.watch-log-line{margin-bottom:4px;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.form-group{margin-bottom:14px}
+.form-label{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block;text-transform:uppercase;letter-spacing:.06em}
+.form-input{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:9px 13px;color:var(--text);font-family:'Inter',sans-serif;font-size:14px;width:100%;outline:none;transition:var(--t)}
+.form-input:focus{border-color:var(--accent)}
+.form-select{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:9px 13px;color:var(--text);font-family:'Inter',sans-serif;font-size:14px;width:100%;outline:none;transition:var(--t)}
+.form-select:focus{border-color:var(--accent)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;pointer-events:none;transition:var(--t)}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:26px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;transform:translateY(14px);transition:var(--t)}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:5px}
+.modal-sub{font-size:14px;color:var(--text2);margin-bottom:18px;line-height:1.6}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.modal-cancel{background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:8px 16px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:var(--t)}
+.modal-cancel:hover{color:var(--text)}
+.modal-confirm{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:8px 16px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:var(--t)}
+.modal-confirm:hover{opacity:.85}
+.color-opts{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.color-opt{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:var(--t)}
+.color-opt.sel{border-color:#fff;transform:scale(1.18)}
+.toasts{position:fixed;bottom:22px;right:22px;z-index:400;display:flex;flex-direction:column;gap:7px}
+.toast{background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:11px 16px;font-size:14px;font-weight:600;max-width:320px;animation:toastIn .2s ease;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.toast.success{border-color:var(--green)}
+.toast.error{border-color:var(--red)}
+.toast.info{border-color:var(--accent)}
+.toast.warning{border-color:var(--yellow)}
+@keyframes toastIn{from{transform:translateX(18px);opacity:0}to{transform:none;opacity:1}}
+.empty-state{text-align:center;padding:50px 20px;color:var(--text3)}
+.empty-icon{font-size:42px;margin-bottom:10px;opacity:.35}
+.empty-text{font-size:15px;font-weight:600;color:var(--text2);margin-bottom:5px}
+.empty-sub{font-size:14px}
+@media(max-width:900px){
+  .sidebar{width:60px;padding:12px 8px}
+  .brand-name,.brand-ver,.nav-item span,.server-pill span{display:none}
+  .main-content{margin-left:60px}
+  .config-layout{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="loading-bar" id="lb"></div>
+<div class="shell">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-icon">📦</div>
+    <div><div class="brand-name">SAT</div><div class="brand-ver">PREBEL</div></div>
+  </div>
+  <div class="nav-label">Menú</div>
+  <div class="nav-item active" onclick="navTo('procesar',this)"><span class="nav-icon">⚡</span><span>Procesar</span></div>
+  <div class="nav-item" onclick="navTo('dashboard',this)"><span class="nav-icon">📊</span><span>Indicadores</span></div>
+  <div class="nav-item" onclick="navTo('historial',this)"><span class="nav-icon">🕓</span><span>Historial</span></div>
+  <div class="nav-item" onclick="navTo('config',this)"><span class="nav-icon">⚙️</span><span>Configuración</span></div>
+  <div class="nav-item" onclick="navTo('watch',this)"><span class="nav-icon">👁</span><span>Watch Folder</span></div>
+  <div class="nav-spacer"></div>
+  <div class="server-pill"><div class="sdot" id="sdot"></div><span id="stext">Conectando...</span></div>
+</aside>
+
+<div class="main-content">
+<div class="topbar">
+  <div class="page-title" id="pageTitle">Procesar Archivos</div>
+  <div class="topbar-right">
+    <button class="btn-secondary btn-sm" onclick="navTo('config',null)">⚙️ Config</button>
+  </div>
+</div>
+
+<div class="page-body">
+
+<!-- PROCESAR  -->
+<div class="page active" id="page-procesar">
+  <div class="section-title">Procesar Archivos</div>
+  <div class="section-sub">Adjunta los Excel de cada transportadora. El mapeo se sugiere automáticamente al subir.</div>
+  <div class="stats-row">
+    <div class="stat-chip accent"><div class="stat-v" id="s-archivos">0</div><div class="stat-l">Archivos cargados</div></div>
+    <div class="stat-chip"><div class="stat-v" id="s-filas">—</div><div class="stat-l">Filas procesadas</div></div>
+    <div class="stat-chip green"><div class="stat-v" id="s-ontime">—</div><div class="stat-l">% ON TIME</div></div>
+    <div class="stat-chip"><div class="stat-v" id="s-carriers">—</div><div class="stat-l">Transportadoras</div></div>
+  </div>
+  <div class="carriers-grid" id="carriersGrid"></div>
+  <div class="action-bar">
+    <button class="btn-primary" id="genBtn" onclick="procesarTodo()">⚡ Generar Excel Unificado</button>
+    <button class="btn-secondary" onclick="limpiarTodo()">🗑 Limpiar todo</button>
+  </div>
+  <div class="progress-card" id="progressCard">
+    <div class="progress-label"><span>Procesando...</span><span id="progPct">0%</span></div>
+    <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+    <div class="progress-msg" id="progMsg">Iniciando...</div>
+  </div>
+  <div id="calidadSection"></div>
+  <div id="previewSection"></div>
+</div>
+
+<!-- ═══ DASHBOARD ═══ -->
+<div class="page" id="page-dashboard">
+  <div class="section-title">Indicadores</div>
+  <div class="section-sub">Métricas en tiempo real con filtros dinámicos sobre el Excel procesado.</div>
+  <div id="dashContent">
+    <div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Sin datos aún</div><div class="empty-sub">Procesa archivos primero para ver las métricas</div></div>
+  </div>
+</div>
+
+<!-- ═══ HISTORIAL ═══ -->
+<div class="page" id="page-historial">
+  <div class="section-title">Historial de Procesamientos</div>
+  <div class="section-sub">Todos los Excel generados, con opción de descarga y re-análisis.</div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Registros</span>
+      <button class="btn-secondary btn-sm" onclick="loadHistorial()">🔄 Actualizar</button>
+    </div>
+    <div class="table-wrap"><div id="histContent"><div class="empty-state"><div class="empty-icon">🕓</div><div class="empty-text">Sin registros</div></div></div></div>
+  </div>
+</div>
+
+<!-- CONFIG -->
+<div class="page" id="page-config">
+  <div class="section-title">Configuración</div>
+  <div class="section-sub">Mapeo de columnas por transportadora. Se aplica a todos los procesamientos futuros.</div>
+  <div class="config-layout">
+    <div>
+      <div class="cfg-sidebar">
+        <div class="cfg-sidebar-hdr">Transportadoras</div>
+        <div class="cfg-list" id="cfgList"></div>
+        <button class="add-carrier-btn-cfg" onclick="openAddModal()">+ Nueva transportadora</button>
+      </div>
+    </div>
+    <div class="cfg-panel" id="cfgPanel">
+      <div class="empty-state"><div class="empty-icon">👈</div><div class="empty-text">Selecciona una transportadora</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WATCH FOLDER ═══ -->
+<div class="page" id="page-watch">
+  <div class="section-title">Watch Folder</div>
+  <div class="section-sub">Deposita cualquier Excel en la carpeta — el sistema identifica la transportadora solo y genera el informe unificado.</div>
+
+  <div class="watch-card">
+    <div class="watch-status" id="watchStatus">
+      <div class="sdot" id="watchDot"></div>
+      <span id="watchStatusText">Inactivo</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:14px;margin-bottom:14px;align-items:end">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Carpeta a vigilar</label>
+        <input class="form-input" id="watchFolder" placeholder="Ej: Z:\Descargas\Transportadoras">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Espera antes de procesar</label>
+        <select class="form-select" id="watchEspera" style="min-width:160px">
+          <option value="1">1 minuto</option>
+          <option value="3" selected>3 minutos</option>
+          <option value="5">5 minutos</option>
+          <option value="10">10 minutos</option>
+          <option value="15">15 minutos</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-primary" onclick="toggleWatch(true)">▶ Activar</button>
+      <button class="btn-secondary" onclick="toggleWatch(false)">⏹ Detener</button>
+    </div>
+    <div style="margin-top:16px;padding:12px 14px;background:rgba(91,110,245,.06);border:1px solid rgba(91,110,245,.2);border-radius:8px;font-size:13px;color:var(--text2);line-height:1.7">
+      <strong style="color:var(--accent)">¿Cómo funciona?</strong><br>
+      1. Deposita uno o varios Excel (de cualquier transportadora) en la carpeta.<br>
+      2. El sistema identifica automáticamente a cuál transportadora pertenece cada archivo.<br>
+      3. Espera el tiempo configurado por si llegan más archivos.<br>
+      4. Procesa todos juntos y genera <strong style="color:var(--text)">un solo Excel unificado</strong>.
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <span class="card-title">Cola de archivos pendientes</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary btn-sm" id="btnProcesarAhora" onclick="watchProcesarAhora()" style="display:none">⚡ Procesar ahora</button>
+        <button class="btn-secondary btn-sm" onclick="watchVaciarCola()">🗑 Vaciar cola</button>
+      </div>
+    </div>
+    <div style="padding:14px" id="colaContent">
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">Sin archivos en cola</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Log en tiempo real</span>
+      <button class="btn-secondary btn-sm" onclick="clearLog()">Limpiar</button>
+    </div>
+    <div style="padding:14px">
+      <div class="watch-log" id="watchLog"><div style="color:var(--text3)">Esperando actividad...</div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- page-body -->
+</div><!-- main-content -->
+</div><!-- shell -->
+
+<!-- MODAL NUEVA TRANSPORTADORA -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-title">Nueva Transportadora</div>
+    <div class="modal-sub">Créala y luego configura el mapeo de columnas.</div>
+    <div class="form-group"><label class="form-label">Nombre</label><input class="form-input" id="newName" placeholder="Ej: TCC, Servientrega..."></div>
+    <div class="form-group"><label class="form-label">Color</label><div class="color-opts" id="colorOpts"></div></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('addModal')">Cancelar</button>
+      <button class="modal-confirm" onclick="crearCarrier()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MAPEO -->
+<div class="modal-overlay" id="mapeoModal">
+  <div class="modal" style="width:580px">
+    <div class="modal-title" id="mapeoTitle">Confirmar Mapeo de Columnas</div>
+    <div class="modal-sub">El sistema detectó las columnas del archivo. Verifica o ajusta las sugerencias automáticas.</div>
+    <div class="mapeo-modal-body" id="mapeoBody"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('mapeoModal')">Cancelar</button>
+      <button class="modal-confirm" onclick="confirmarMapeo()">✅ Confirmar y guardar mapeo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+const API    = "http://localhost:5000/api";
+const COLORS = ["#5b6ef5","#8b5cf6","#22c55e","#f59e0b","#ef4444","#06b6d4","#ec4899","#84cc16"];
+const AUTO_COLS = new Set(["Transportador","MES","ON TIME","ON TIME (SI=1 Y NO=0)"]);
+
+let carriers=[], finalCols=[], uploadedFiles={};
+let selColor=COLORS[0], selConfig=null;
+let resultFile=null, lastMetricas=null, pendingMapeo=null;
+
+// ── SOCKET.IO ─────────────────────────────────────────
+const socket = io("http://localhost:5000");
+socket.on("conectado",          ()         => setServer(true));
+socket.on("disconnect",         ()         => setServer(false));
+socket.on("connect_error",      ()         => setServer(false));
+socket.on("progreso",           ({pct,msg})=> setProgress(pct,msg));
+socket.on("proceso_completado", data       => onProcesoCompletado(data));
+socket.on("proceso_error",      ({error})  => { hideProgress(); toast("error","❌ "+error); enableGenBtn(); });
+// Watch events
+socket.on("watch_log",            ({msg})                    => addLog(msg));
+socket.on("watch_cola_update",    ({cola})                   => renderCola(cola));
+socket.on("watch_detectado",      ({archivo,carrier,metodo,score}) => addLog(`📦 ${archivo} → <strong>${carrier}</strong> (${metodo}, ${score}%)`));
+socket.on("watch_no_identificado",({archivo})                => { addLog(`⚠️ No identificado: ${archivo}`); toast("warning",`⚠️ No se pudo identificar: ${archivo}`); });
+socket.on("watch_progreso",       ({pct,msg})                => addLog(`  ${pct}% — ${msg}`));
+socket.on("watch_completado",     ({archivo,total_filas,carriers:cs}) => {
+  addLog(`✅ Excel generado: ${archivo} (${total_filas} filas — ${(cs||[]).join(", ")})`);
+  loadHistorial();
+  toast("success",`✅ ${total_filas} filas procesadas → ${archivo}`);
+});
+socket.on("watch_error", ({error}) => { addLog(`❌ Error: ${error}`); toast("error","❌ "+error); });
+
+function setServer(ok){
+  document.getElementById("sdot").className    = "sdot "+(ok?"on":"off");
+  document.getElementById("stext").textContent = ok?"Servidor activo":"Sin conexión";
+}
+
+// ── INIT ──────────────────────────────────────────────
+async function init(){ renderColors(); await loadCarriers(); loadHistorial(); loadWatchStatus(); }
+
+// ── NAVEGACIÓN ────────────────────────────────────────
+const PAGE_TITLES = {procesar:"Procesar Archivos",dashboard:"Indicadores",historial:"Historial",config:"Configuración",watch:"Watch Folder"};
+function navTo(page,el){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  document.getElementById("page-"+page).classList.add("active");
+  if(el) el.classList.add("active");
+  else document.querySelectorAll(".nav-item").forEach(n=>{ if(n.textContent.trim().toLowerCase().includes(page.slice(0,4))) n.classList.add("active"); });
+  document.getElementById("pageTitle").textContent = PAGE_TITLES[page]||page;
+  if(page==="dashboard") loadDashboard();
+  if(page==="config")    renderCfgList();
+  if(page==="historial") loadHistorial();
+  if(page==="watch")     loadWatchStatus();
+}
+
+// ── CARRIERS ──────────────────────────────────────────
+async function loadCarriers(){
+  setLoading(true);
+  try{
+    const r=await fetch(`${API}/carriers`); const data=await r.json();
+    carriers=data.carriers; finalCols=data.finalCols;
+    carriers.forEach(c=>{ if(!uploadedFiles[c.id]) uploadedFiles[c.id]=[null,null]; });
+    document.getElementById("s-carriers").textContent=carriers.length;
+    renderGrid(); renderCfgList();
+  }catch(e){ toast("error","❌ No se puede conectar al servidor"); }
+  finally{ setLoading(false); }
+}
+
+function renderGrid(){
+  const grid=document.getElementById("carriersGrid"); grid.innerHTML="";
+  carriers.forEach(c=>{
+    const files=uploadedFiles[c.id]||[null,null];
+    const zonas=files.map((f,i)=>`
+      <div class="dz" id="dz-${c.id}-${i}" ondragover="onDO(event)" ondragleave="onDL(event)" ondrop="onDrop(event,'${c.id}',${i})">
+        <input type="file" accept=".xlsx,.xls" onchange="onFI(event,'${c.id}',${i})">
+        <span class="dz-icon">${f?"📄":"📎"}</span>
+        <span class="dz-label ${f?"loaded":""}" id="lbl-${c.id}-${i}">${f?f.original:"Archivo "+(i+1)+" — Arrastra o haz click"}</span>
+        ${f?`<span style="font-size:13px;color:var(--green);flex-shrink:0">✓</span><button class="dz-clear" onclick="clearF('${c.id}',${i},event)">✕</button>`:""}
+      </div>`).join("");
+    const addBtn=files.length<5?`<button class="add-file-btn" onclick="addSlot('${c.id}')">+ Archivo</button>`:"";
+    const delBtn=!c.isStatic?`<button class="del-carrier-btn" onclick="deleteCarrier('${c.id}')">✕</button>`:"";
+    const card=document.createElement("div"); card.className="carrier-card";
+    card.innerHTML=`<div class="carrier-hdr"><div class="carrier-info"><div class="cdot" style="background:${c.color}"></div><span class="cname">${c.name}</span><span class="cbadge ${c.isStatic?"":"custom"}">${c.isStatic?"estática":"custom"}</span></div>${delBtn}</div><div class="drop-zones">${zonas}${addBtn}</div>`;
+    grid.appendChild(card);
+  });
+  updateFileStats();
+}
+
+function onDO(e){e.preventDefault();e.currentTarget.classList.add("over");}
+function onDL(e){e.currentTarget.classList.remove("over");}
+function onDrop(e,cid,idx){e.preventDefault();e.currentTarget.classList.remove("over");if(e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0],cid,idx);}
+function onFI(e,cid,idx){if(e.target.files[0]) uploadFile(e.target.files[0],cid,idx);}
+
+async function uploadFile(file,carrierId,fileIndex){
+  const ext=file.name.split(".").pop().toLowerCase();
+  if(!["xlsx","xls"].includes(ext)){toast("error","❌ Solo .xlsx o .xls");return;}
+  const lbl=document.getElementById(`lbl-${carrierId}-${fileIndex}`);
+  if(lbl) lbl.textContent="Subiendo...";
+  const form=new FormData(); form.append("file",file); form.append("carrier_id",carrierId);
+  try{
+    const r=await fetch(`${API}/upload`,{method:"POST",body:form}); const data=await r.json();
+    if(!r.ok) throw new Error(data.error);
+    if(!uploadedFiles[carrierId]) uploadedFiles[carrierId]=[null,null];
+    uploadedFiles[carrierId][fileIndex]={filename:data.filename,original:data.original};
+    renderGrid();
+    const carrier=carriers.find(c=>c.id===carrierId);
+    if(data.columnas_excel&&data.columnas_excel.length>0){
+      pendingMapeo={carrierId,filename:data.filename,original:data.original,columnas_excel:data.columnas_excel,sugerencias:data.sugerencias,mapeo_actual:data.mapeo_actual};
+      abrirMapeoModal(carrier,data);
+    }else{ toast("success",`📄 ${data.original} subido`); }
+  }catch(e){ toast("error","❌ "+e.message); if(lbl) lbl.textContent="Error al subir"; }
+}
+
+function abrirMapeoModal(carrier,data){
+  document.getElementById("mapeoTitle").textContent=`Mapeo de columnas — ${carrier.name}`;
+  const cols_mapeables=finalCols.filter(c=>!AUTO_COLS.has(c));
+  document.getElementById("mapeoBody").innerHTML=cols_mapeables.map(col=>{
+    const sug=data.sugerencias[col]||{},actual=(data.mapeo_actual||{})[col]||"";
+    const selected=actual||sug.sugerido||"",score=sug.score||0;
+    const scoreCls=score>=85?"score-high-pill":score>=60?"score-mid-pill":"score-low-pill";
+    const opts=["",...data.columnas_excel].map(o=>`<option value="${o}" ${o===selected?"selected":""}>${o||"— no mapear —"}</option>`).join("");
+    return`<div class="mapeo-row"><div><span class="final-col-tag">${col}</span>${score>0?`<span class="score-pill ${scoreCls}">${score}%</span>`:""}</div><div class="mapeo-arrow">→</div><select class="mapeo-select" data-col="${col}">${opts}</select></div>`;
+  }).join("");
+  document.getElementById("mapeoModal").classList.add("open");
+}
+
+async function confirmarMapeo(){
+  if(!pendingMapeo) return;
+  const mapping={};
+  document.querySelectorAll(".mapeo-select").forEach(s=>{mapping[s.dataset.col]=s.value;});
+  try{
+    const r=await fetch(`${API}/carriers/${pendingMapeo.carrierId}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({mapping})});
+    if(!r.ok) throw new Error("Error al guardar");
+    const carrier=carriers.find(c=>c.id===pendingMapeo.carrierId);
+    if(carrier) carrier.mapping={...(carrier.mapping||{}),...mapping};
+    toast("success",`✅ Mapeo de ${carrier?.name} guardado`);
+    closeModal("mapeoModal"); pendingMapeo=null;
+  }catch(e){toast("error","❌ "+e.message);}
+}
+
+function clearF(cid,idx,e){e.stopPropagation();uploadedFiles[cid][idx]=null;renderGrid();}
+function addSlot(cid){uploadedFiles[cid].push(null);renderGrid();}
+function updateFileStats(){
+  let t=0; Object.values(uploadedFiles).forEach(a=>a.forEach(f=>{if(f)t++;}));
+  document.getElementById("s-archivos").textContent=t;
+}
+
+// ── PROCESAR ──────────────────────────────────────────
+async function procesarTodo(){
+  const jobs=[];
+  carriers.forEach(c=>{
+    const files=(uploadedFiles[c.id]||[]).filter(f=>f).map(f=>f.filename);
+    if(files.length) jobs.push({carrier_id:c.id,files});
+  });
+  if(!jobs.length){toast("error","❌ No hay archivos cargados");return;}
+  disableGenBtn(); showProgress();
+  document.getElementById("calidadSection").innerHTML="";
+  document.getElementById("previewSection").innerHTML="";
+  try{
+    const r=await fetch(`${API}/process`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jobs})});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error||"Error al iniciar");
+    pollJobStatus(d.job_id);
+  }catch(e){hideProgress();toast("error","❌ "+e.message);enableGenBtn();}
+}
+
+async function pollJobStatus(jobId){
+  const interval=setInterval(async()=>{
+    try{
+      const r=await fetch(`${API}/process/status/${jobId}`); const d=await r.json();
+      if(d.pct!==undefined) setProgress(d.pct,d.msg||"");
+      if(d.status==="done"){clearInterval(interval);onProcesoCompletado(d.result);}
+      else if(d.status==="error"){clearInterval(interval);hideProgress();enableGenBtn();toast("error","❌ "+(d.error||"Error desconocido"));}
+    }catch(e){clearInterval(interval);hideProgress();enableGenBtn();toast("error","❌ Error de conexión");}
+  },1000);
+}
+
+function onProcesoCompletado(data){
+  hideProgress(); enableGenBtn();
+  if(!data||typeof data!=="object"){toast("error","❌ Respuesta inválida");return;}
+  resultFile=data.output_file||null;
+  lastMetricas=data.metricas||null;
+  dashHistorialId=null;
+  const total=data.total_rows||0,cols=data.columns||[],prev=data.preview||[],stats=data.stats||{},rep=data.reportes||[];
+  document.getElementById("s-filas").textContent=total.toLocaleString();
+  if(data.metricas&&data.metricas.on_time) document.getElementById("s-ontime").textContent=data.metricas.on_time.pct+"%";
+  renderCalidad(rep);
+  renderPreview({total_rows:total,columns:cols,preview:prev,stats});
+  toast("success","✅ "+total.toLocaleString()+" filas procesadas");
+}
+
+function showProgress(){document.getElementById("progressCard").classList.add("visible");setProgress(0,"Iniciando...");}
+function hideProgress(){document.getElementById("progressCard").classList.remove("visible");}
+function setProgress(pct,msg){
+  document.getElementById("progFill").style.width=pct+"%";
+  document.getElementById("progPct").textContent=pct+"%";
+  document.getElementById("progMsg").textContent=msg;
+}
+function disableGenBtn(){const b=document.getElementById("genBtn");b.disabled=true;b.textContent="⏳ Procesando...";}
+function enableGenBtn(){const b=document.getElementById("genBtn");b.disabled=false;b.innerHTML="⚡ Generar Excel Unificado";}
+
+function renderCalidad(reportes){
+  if(!reportes||!reportes.length) return;
+  const sec=document.getElementById("calidadSection");
+  const cards=reportes.map(r=>{
+    const scoreCls=r.score>=80?"score-high":r.score>=60?"score-mid":"score-low";
+    const c=carriers.find(c=>c.name===r.carrier),color=c?c.color:"#8892b0";
+    const issues=r.issues.map(i=>`<div class="issue-item issue-${i.tipo}"><span class="issue-icon">${i.icono}</span><div><div class="issue-msg">${i.mensaje}</div><div class="issue-det">${i.detalle}</div></div></div>`).join("");
+    return`<div class="calidad-card"><div class="calidad-header"><div style="display:flex;align-items:center;gap:8px"><div class="cdot" style="background:${color}"></div><span class="calidad-name">${r.carrier}</span><span style="font-size:13px;color:var(--text3);font-family:'JetBrains Mono',monospace">${r.total.toLocaleString()} filas</span></div><span class="score-badge ${scoreCls}">${r.score}/100</span></div><div class="calidad-issues">${issues}</div></div>`;
+  }).join("");
+  sec.innerHTML=`<div style="margin-bottom:14px"><div style="font-size:15px;font-weight:800;margin-bottom:4px">Reporte de Calidad</div><div style="font-size:14px;color:var(--text2);margin-bottom:12px">Análisis automático de los datos procesados.</div><div class="calidad-grid">${cards}</div></div>`;
+}
+
+function renderPreview(data){
+  const sec=document.getElementById("previewSection"),cols=data.columns,rows=data.preview;
+  const statsHtml=Object.entries(data.stats||{}).map(([n,v])=>{const c=carriers.find(c=>c.name===n);return`<span style="font-size:14px;color:var(--text2)"><span style="color:${c?.color||'#8892b0'}">●</span> ${n} <strong style="font-family:'JetBrains Mono',monospace;color:var(--text)">${v.toLocaleString()}</strong></span>`;}).join(" &nbsp; ");
+  const ths=cols.map(c=>`<th>${c}</th>`).join("");
+  const trs=rows.map(row=>{
+    const tds=cols.map(col=>{
+      const v=row[col]??"";
+      if(col==="ON TIME"){if(v==="SI")return`<td><span class="badge b-si">SI</span></td>`;if(v==="NO")return`<td><span class="badge b-no">NO</span></td>`;if(v==="NO ENTREGADO")return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;return`<td>${v}</td>`;}
+      if(col==="Transportador"){const c=carriers.find(c=>c.name===v);const color=c?.color||"#8892b0";return`<td><span class="badge" style="background:${color}20;color:${color}">${v}</span></td>`;}
+      if(col==="Guia"||col==="Numero_Documento")return`<td class="hl">${v}</td>`;
+      return`<td>${v}</td>`;
+    }).join("");
+    return`<tr>${tds}</tr>`;
+  }).join("");
+  sec.innerHTML=`<div class="card"><div class="card-header"><span class="card-title">Vista Previa — ${data.total_rows.toLocaleString()} filas</span><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:13px;color:var(--text3);font-family:'JetBrains Mono',monospace">100 primeras filas</span><button class="btn-secondary btn-sm" onclick="descargar()">⬇ Descargar Excel</button></div></div><div style="padding:10px 18px;border-bottom:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;background:var(--surface2)">${statsHtml}</div><div class="table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div></div>`;
+}
+function descargar(){if(!resultFile){toast("error","❌ Sin resultado");return;}window.location.href=`${API}/download/${resultFile}`;}
+
+
+//  DASHBOARD CON FILTROS + SELECTOR DE HISTORIAL
+
+//  DASHBOARD ESTILO POWER BI — reemplaza renderDashboardContent()
+//  en index.html. Pega este bloque completo en el <script>.
+
+
+let dashFilters     = { numero_documento:"", mes:"", transportador:"", ciudad_destino:"", destinatario:"", estado:"" };
+let dashData = null;   // referencia a los datos actuales para descargas
+let dashHistorialId = null;
+let dashHistorial   = [];
+let dashCharts      = {};
+let dashLoading     = false;
+
+// Inyectar estilos del dashboard una sola vez
+(function injectDashStyles(){
+  if(document.getElementById("dash-styles")) return;
+  const s = document.createElement("style");
+  s.id = "dash-styles";
+  s.textContent = `
+    .pbi-wrap { font-family:'JetBrains Mono',monospace; }
+
+    /* TOPBAR FILTROS */
+    .pbi-filters {
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:12px 16px; margin-bottom:14px;
+    }
+    .pbi-filter-group { display:flex; flex-direction:column; gap:3px; min-width:140px; flex:1; }
+    .pbi-filter-label {
+      font-size:11px; font-weight:700; letter-spacing:.1em;
+      text-transform:uppercase; color:var(--text3);
+    }
+    .pbi-filter-select, .pbi-filter-input {
+      background:var(--surface2); border:1px solid var(--border2);
+      border-radius:6px; padding:6px 10px; color:var(--text);
+      font-family:'JetBrains Mono',monospace; font-size:13px;
+      width:100%; outline:none; transition:.15s;
+    }
+    .pbi-filter-select:focus, .pbi-filter-input:focus { border-color:var(--accent); }
+    .pbi-filter-input::placeholder { color:var(--text3); }
+    .pbi-filter-actions { display:flex; gap:6px; align-items:flex-end; padding-bottom:1px; }
+    .pbi-btn-apply {
+      background:var(--accent); color:#fff; border:none;
+      border-radius:6px; padding:7px 14px; font-family:'Inter',sans-serif;
+      font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;
+      transition:.15s;
+    }
+    .pbi-btn-apply:hover { opacity:.88; }
+    .pbi-btn-clear {
+      background:var(--surface2); border:1px solid var(--border2);
+      color:var(--text3); border-radius:6px; padding:7px 12px;
+      font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
+      cursor:pointer; white-space:nowrap; transition:.15s;
+    }
+    .pbi-btn-clear:hover { border-color:var(--red); color:var(--red); }
+
+    /* FUENTE SELECTOR */
+    .pbi-source {
+      display:flex; align-items:center; gap:10px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:10px 16px; margin-bottom:14px;
+      flex-wrap:wrap;
+    }
+    .pbi-source-label { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+    .pbi-source-select {
+      background:var(--surface2); border:1px solid var(--border2);
+      border-radius:6px; padding:6px 10px; color:var(--text);
+      font-family:'JetBrains Mono',monospace; font-size:13px; flex:1;
+      min-width:240px; outline:none; transition:.15s;
+    }
+    .pbi-source-select:focus { border-color:var(--accent); }
+    .pbi-source-refresh {
+      background:var(--surface2); border:1px solid var(--border2);
+      color:var(--text2); border-radius:6px; padding:6px 12px;
+      font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
+      cursor:pointer; transition:.15s; white-space:nowrap;
+    }
+    .pbi-source-refresh:hover { border-color:var(--accent); color:var(--accent); }
+
+    /* CHIPS FILTROS ACTIVOS */
+    .pbi-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; min-height:0; }
+    .pbi-chip {
+      display:flex; align-items:center; gap:5px;
+      background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35);
+      border-radius:20px; padding:2px 10px; font-size:13px;
+      color:var(--yellow); font-family:'JetBrains Mono',monospace;
+    }
+    .pbi-chip-x { cursor:pointer; color:var(--text3); margin-left:2px; font-size:13px; }
+    .pbi-chip-x:hover { color:var(--red); }
+
+    /* KPI ROW */
+    .pbi-kpi-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; margin-bottom:14px; }
+    .pbi-kpi {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:14px 16px; position:relative; overflow:hidden;
+    }
+    .pbi-kpi::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+      background:var(--kpi-color, var(--accent));
+    }
+    .pbi-kpi-val {
+      font-size:28px; font-weight:800; font-family:'JetBrains Mono',monospace;
+      line-height:1; color:var(--kpi-color, var(--text));
+    }
+    .pbi-kpi-lbl { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:.08em; text-transform:uppercase; margin-top:5px; }
+    .pbi-kpi-sub { font-size:13px; color:var(--text2); margin-top:2px; font-family:'JetBrains Mono',monospace; }
+
+    /* GRID PRINCIPAL */
+    .pbi-main-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      grid-template-rows:auto auto;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    @media(max-width:1100px){ .pbi-main-grid{ grid-template-columns:1fr 1fr; } }
+    @media(max-width:700px){  .pbi-main-grid{ grid-template-columns:1fr; } }
+
+    /* PANEL GENÉRICO */
+    .pbi-panel {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); overflow:hidden;
+    }
+    .pbi-panel-hdr {
+      padding:10px 14px; border-bottom:1px solid var(--border);
+      font-size:13px; font-weight:700; color:var(--text);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .pbi-panel-hdr-accent { color:var(--yellow); font-size:11px; font-family:'JetBrains Mono',monospace; }
+    .pbi-panel-body { padding:12px 14px; }
+
+    /* TABLA ESTADOS */
+    .pbi-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+    .pbi-tbl thead th {
+      text-align:left; padding:5px 8px; font-size:11px; color:var(--text3);
+      font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+      border-bottom:1px solid var(--border);
+    }
+    .pbi-tbl thead th:not(:first-child) { text-align:right; }
+    .pbi-tbl tbody tr { border-bottom:1px solid var(--border); transition:.12s; }
+    .pbi-tbl tbody tr:hover { background:var(--surface2); }
+    .pbi-tbl tbody tr:last-child { border-bottom:none; font-weight:700; color:var(--text); background:var(--surface2); }
+    .pbi-tbl td { padding:5px 8px; color:var(--text2); }
+    .pbi-tbl td:not(:first-child) { text-align:right; font-family:'JetBrains Mono',monospace; }
+    .pbi-tbl td:first-child { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* BARRAS ON TIME */
+    .pbi-ontime-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .pbi-ontime-lbl { font-size:13px; color:var(--text2); min-width:56px; text-align:right; font-family:'JetBrains Mono',monospace; }
+    .pbi-ontime-bars { flex:1; display:flex; height:18px; border-radius:3px; overflow:hidden; }
+    .pbi-ontime-no  { background:#ef4444cc; height:100%; transition:.4s; display:flex; align-items:center; justify-content:flex-end; padding-right:4px; }
+    .pbi-ontime-si  { background:#f59e0bcc; height:100%; transition:.4s; display:flex; align-items:center; padding-left:4px; }
+    .pbi-ontime-bar-lbl { font-size:11px; font-family:'JetBrains Mono',monospace; font-weight:700; color:#fff; white-space:nowrap; }
+    .pbi-ontime-legend { display:flex; gap:12px; margin-bottom:10px; }
+    .pbi-ontime-leg-item { display:flex; align-items:center; gap:5px; font-size:13px; color:var(--text2); }
+    .pbi-ontime-leg-dot { width:8px; height:8px; border-radius:50%; }
+
+    /* DONA */
+    .pbi-dona-wrap { display:flex; align-items:center; gap:16px; }
+    .pbi-dona-canvas { position:relative; width:140px; height:140px; flex-shrink:0; }
+    .pbi-dona-center {
+      position:absolute; inset:0; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; pointer-events:none;
+    }
+    .pbi-dona-pct { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1; }
+    .pbi-dona-sublbl { font-size:11px; color:var(--text3); margin-top:2px; }
+    .pbi-dona-legs { display:flex; flex-direction:column; gap:8px; flex:1; }
+    .pbi-dona-leg { display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+    .pbi-dona-leg-left { display:flex; align-items:center; gap:5px; color:var(--text2); }
+    .pbi-dona-leg-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .pbi-dona-leg-val { font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text); }
+
+    /* TABLA BASE DATOS */
+    .pbi-base-panel {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); overflow:hidden;
+    }
+    .pbi-base-hdr {
+      padding:10px 16px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+      flex-wrap:wrap; gap:8px;
+    }
+    .pbi-base-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:.04em; text-transform:uppercase; }
+    .pbi-base-count { font-size:13px; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+    .pbi-base-tbl-wrap { overflow-x:auto; max-height:320px; overflow-y:auto; }
+    .pbi-base-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+    .pbi-base-tbl thead th {
+      background:var(--surface2); padding:7px 10px; text-align:left;
+      font-size:11px; color:var(--text2); font-weight:700; letter-spacing:.05em;
+      text-transform:uppercase; border-bottom:1px solid var(--border);
+      position:sticky; top:0; font-family:'JetBrains Mono',monospace; white-space:nowrap;
+    }
+    .pbi-base-tbl tbody tr { border-bottom:1px solid var(--border); transition:.12s; }
+    .pbi-base-tbl tbody tr:hover { background:var(--surface2); }
+    .pbi-base-tbl tbody td { padding:6px 10px; color:var(--text2); white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis; }
+    .pbi-base-tbl td.pbi-td-hl { color:var(--text); font-weight:700; }
+
+    /* INFO BAR */
+    .pbi-info-bar {
+      font-size:13px; color:var(--text3); font-family:'JetBrains Mono',monospace;
+      padding:6px 16px; border-top:1px solid var(--border);
+      display:flex; gap:16px; flex-wrap:wrap;
+    }
+    .pbi-info-bar span { color:var(--text2); }
+    .pbi-btn-dl {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text3);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: .15s;
+    white-space: nowrap;
+  }
+  .pbi-btn-dl:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  `;
+  document.head.appendChild(s);
+})();
+
+async function loadDashboard(){
+  if(dashLoading) return; dashLoading=true;
+  try{ const r=await fetch(`${API}/historial`); dashHistorial=await r.json(); }catch(e){ dashHistorial=[]; }
+  const params=new URLSearchParams();
+  Object.entries(dashFilters).forEach(([k,v])=>{ if(v) params.set(k,v); });
+  if(dashHistorialId) params.set("historial_id",dashHistorialId);
+  const div=document.getElementById("dashContent");
+  div.innerHTML=`<div style="text-align:center;padding:40px;color:var(--text3)"><div style="font-size:28px;margin-bottom:10px">⏳</div><div style="font-size:14px">Cargando dashboard...</div></div>`;
+  try{
+    const r=await fetch(`${API}/dashboard?${params}`);
+    if(r.status===404){ div.innerHTML=`<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Sin datos aún</div><div class="empty-sub">Procesa archivos primero</div></div>`; dashLoading=false; return; }
+    const data=await r.json(); if(data.error) throw new Error(data.error);
+    renderDashboardContent(data);
+  }catch(e){
+    div.innerHTML=`<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-text">Error cargando dashboard</div><div class="empty-sub">${e.message}</div></div>`;
+  }finally{ dashLoading=false; }
+}
+
+function renderDashboardContent(data){
+  const m=data.metricas||{}, div=document.getElementById("dashContent");
+  Object.values(dashCharts).forEach(c=>{ try{c.destroy();}catch{} }); dashCharts={};
+  dashData = data; 
+  const ot=m.on_time||{}, pct=ot.pct||0;
+  const pctColor=pct>=80?"#22c55e":pct>=60?"#f59e0b":"#ef4444";
+
+  // Opciones historial
+  const histOpts=[
+    `<option value="" ${!dashHistorialId?"selected":""}>— Último procesamiento —</option>`,
+    ...dashHistorial.map(h=>`<option value="${h.id}" ${String(dashHistorialId)===String(h.id)?"selected":""}>${h.fecha} · ${(h.total_filas||0).toLocaleString()} filas · ${(h.carriers||[]).join(", ")}</option>`)
+  ].join("");
+
+  // Chips filtros activos
+  const chipLabels={numero_documento:"Doc",mes:"Mes",transportador:"Transportadora",ciudad_destino:"Ciudad",destinatario:"Destinatario"};
+  const chips=Object.entries(dashFilters).filter(([,v])=>v).map(([k,v])=>`
+    <div class="pbi-chip">
+      <span>${chipLabels[k]}: ${v}</span>
+      <span class="pbi-chip-x" onclick="removeDashFilter('${k}')">✕</span>
+    </div>`).join("");
+
+  // Tabla estados
+  const estados=m.estados||[];
+  const totalEstados=estados.reduce((a,e)=>a+e.cantidad,0)||1;
+  const estadosRows=estados.map(e=>{
+    const pct2=(e.cantidad/totalEstados*100).toFixed(2)+"%";
+    return`<tr><td>${e.estado}</td><td>${e.cantidad.toLocaleString()}</td><td>${pct2}</td></tr>`;
+  }).join("");
+
+  // Tabla ciudades
+  const ciudades = m.participacion_ciudades||[];
+  const totalCiudades = m.total_filas||1;
+  const ciudadesRows = ciudades.map(c=>{
+    const pct2=(c.cantidad/totalCiudades*100).toFixed(2)+"%";
+    return`<tr><td>${c.ciudad}</td><td>${c.cantidad.toLocaleString()}</td><td>${pct2}</td></tr>`;
+  }).join("");
+
+  // Barras ON TIME por mes
+  const tendencia=m.tendencia_mensual||[];
+  const ontimeRows=tendencia.map(t=>{
+    const base=t.si+t.no||1;
+    const pctNo=Math.round(t.no/base*100), pctSi=Math.round(t.si/base*100);
+    return`
+      <div class="pbi-ontime-row">
+        <span class="pbi-ontime-lbl">${t.mes.slice(0,3)}</span>
+        <div class="pbi-ontime-bars">
+          <div class="pbi-ontime-no" style="width:${pctNo}%">
+            ${pctNo>8?`<span class="pbi-ontime-bar-lbl">${pctNo}%</span>`:""}
+          </div>
+          <div class="pbi-ontime-si" style="width:${pctSi}%">
+            ${pctSi>8?`<span class="pbi-ontime-bar-lbl">${pctSi}%</span>`:""}
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // Preview tabla
+  const cols=data.columns||[], preview=data.preview||[];
+  const COLS_SHOW=["Numero_Documento","NOMBRE TARIFARIO","Guia","Estado","Transportador","Ciudad Destino","Destinatario","MES","ON TIME","Fec_Entrega"];
+  const visibleCols=COLS_SHOW.filter(c=>cols.includes(c));
+  const ths=visibleCols.map(c=>`<th>${c}</th>`).join("");
+  const trs=preview.map(row=>{
+    const tds=visibleCols.map(col=>{
+      const v=row[col]??"";
+      if(col==="ON TIME"){
+        if(v==="SI")  return`<td><span class="badge b-si">SI</span></td>`;
+        if(v==="NO")  return`<td><span class="badge b-no">NO</span></td>`;
+        if(v==="NO ENTREGADO") return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;
+        return`<td>${v}</td>`;
+      }
+      if(col==="Transportador"){
+        const c=carriers.find(c=>c.name===v); const color=c?.color||"#8892b0";
+        return`<td><span class="badge" style="background:${color}20;color:${color}">${v}</span></td>`;
+      }
+      if(col==="Guia"||col==="Numero_Documento") return`<td class="pbi-td-hl">${v}</td>`;
+      return`<td>${v}</td>`;
+    }).join("");
+    return`<tr>${tds}</tr>`;
+  }).join("");
+
+  div.innerHTML=`<div class="pbi-wrap">
+
+  <!-- FUENTE DE DATOS -->
+  <div class="pbi-source">
+    <span class="pbi-source-label">Fuente</span>
+    <select class="pbi-source-select" id="df-historial" onchange="onDashHistorialChange(this.value)">${histOpts}</select>
+    <button class="pbi-source-refresh" onclick="loadDashboard()">🔄 Actualizar</button>
+    <span style="font-size:13px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-left:auto">${data.archivo||""}</span>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="pbi-filters">
+    <div class="pbi-filter-group">
+      <span class="pbi-filter-label">Transportador</span>
+      <select class="pbi-filter-select" id="df-trans">
+        <option value="">Todas</option>
+        ${(data.valores_filtro?.transportadoras||[]).map(t=>`<option value="${t}" ${dashFilters.transportador===t?"selected":""}>${t}</option>`).join("")}
+      </select>
+    </div>
+    <div class="pbi-filter-group">
+      <span class="pbi-filter-label">Ciudad Destino</span>
+      <input class="pbi-filter-input" id="df-ciudad" placeholder="Buscar ciudad..." value="${dashFilters.ciudad_destino}" onkeydown="if(event.key==='Enter')applyDashFilters()">
+    </div>
+    <div class="pbi-filter-group">
+      <span class="pbi-filter-label">MES</span>
+      <select class="pbi-filter-select" id="df-mes">
+        <option value="">Todos</option>
+        ${(data.valores_filtro?.meses||[]).map(mes=>`<option value="${mes}" ${dashFilters.mes===mes?"selected":""}>${mes}</option>`).join("")}
+      </select>
+    </div>
+    <div class="pbi-filter-group">
+      <span class="pbi-filter-label">Numero_Documento</span>
+      <input class="pbi-filter-input" id="df-doc" placeholder="Buscar documento..." value="${dashFilters.numero_documento}" onkeydown="if(event.key==='Enter')applyDashFilters()">
+    </div>
+    <div class="pbi-filter-group">
+      <span class="pbi-filter-label">Destinatario</span>
+      <input class="pbi-filter-input" id="df-dest" placeholder="Buscar destinatario..." value="${dashFilters.destinatario}" onkeydown="if(event.key==='Enter')applyDashFilters()">
+    </div>
+    <div class="pbi-filter-group">
+      <span class="pbi-filter-label">Estado</span>
+      <select class="pbi-filter-select" id="df-estado">
+        <option value="">Todos</option>
+        ${(data.valores_filtro?.estados||[]).map(e=>`<option value="${e}" ${dashFilters.estado===e?"selected":""}>${e}</option>`).join("")}
+      </select>
+    </div>
+
+    <div class="pbi-filter-actions">
+      <button class="pbi-btn-apply" onclick="applyDashFilters()">Aplicar</button>
+      <button class="pbi-btn-clear" onclick="clearDashFilters()">✕</button>
+    </div>
+  </div>
+
+  <!-- CHIPS -->
+  ${chips?`<div class="pbi-chips">${chips}</div>`:""}
+
+  <!-- KPIs -->
+  <div class="pbi-kpi-row">
+    <div class="pbi-kpi" style="--kpi-color:#f59e0b">
+      <div class="pbi-kpi-val">${(m.total_filas||0).toLocaleString()}</div>
+      <div class="pbi-kpi-lbl">Remesas generadas</div>
+      <div class="pbi-kpi-sub">${Object.values(dashFilters).some(v=>v)?`filtrado de ${data.total_original.toLocaleString()}`:"total"}</div>
+    </div>
+    <div class="pbi-kpi" style="--kpi-color:${pctColor}">
+      <div class="pbi-kpi-val" style="color:${pctColor}">${pct}%</div>
+      <div class="pbi-kpi-lbl">ON TIME global</div>
+      <div class="pbi-kpi-sub">${(ot.si||0).toLocaleString()} de ${((ot.si||0)+(ot.no||0)).toLocaleString()}</div>
+    </div>
+    <div class="pbi-kpi" style="--kpi-color:#22c55e">
+      <div class="pbi-kpi-val" style="color:#22c55e">${(ot.si||0).toLocaleString()}</div>
+      <div class="pbi-kpi-lbl">Entregas a tiempo</div>
+    </div>
+    <div class="pbi-kpi" style="--kpi-color:#ef4444">
+      <div class="pbi-kpi-val" style="color:#ef4444">${(ot.no||0).toLocaleString()}</div>
+      <div class="pbi-kpi-lbl">Con retraso</div>
+    </div>
+    <div class="pbi-kpi" style="--kpi-color:#8892b0">
+      <div class="pbi-kpi-val">${(ot.no_entregado||0).toLocaleString()}</div>
+      <div class="pbi-kpi-lbl">Sin entregar</div>
+    </div>
+  </div>
+
+  <!-- GRID PRINCIPAL -->
+  <div class="pbi-main-grid">
+
+    <!-- ESTADOS REMESAS -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">
+        ESTADOS REMESAS DESPACHADAS
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="pbi-panel-hdr-accent">${(m.total_filas||0).toLocaleString()} total</span>
+          <button class="pbi-btn-dl" onclick="descargarTabla('estados')">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="pbi-panel-body" style="padding:0;max-height:280px;overflow-y:auto">
+        <table class="pbi-tbl">
+          <thead style="position:sticky;top:0;z-index:1;background:var(--surface)">
+            <tr><th>Estado</th><th>Recuento</th><th>%TG</th></tr>
+          </thead>
+          <tbody>
+            ${estadosRows}
+            <tr><td>Total</td><td>${(m.total_filas||0).toLocaleString()}</td><td>100,00%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PARTICIPACIÓN POR CIUDAD -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">
+        PARTICIPACIÓN POR CIUDAD
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="pbi-panel-hdr-accent">${ciudades.length} ciudades</span>
+          <button class="pbi-btn-dl" onclick="descargarTabla('ciudades')">⬇ Excel</button>
+        </div>
+      </div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="pbi-tbl">
+          <thead style="position:sticky;top:0;z-index:1;background:var(--surface)">
+            <tr><th>Ciudad Destino</th><th>Remesas</th><th>%TG</th></tr>
+          </thead>
+          <tbody>
+            ${ciudadesRows}
+            <tr><td>Total</td><td>${(m.total_filas||0).toLocaleString()}</td><td>100,00%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INDICADOR ON TIME -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">
+        INDICADOR ON TIME
+        <div style="display:flex;gap:8px">
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)"><span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block"></span>NO</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)"><span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>SI</span>
+        </div>
+      </div>
+      <div class="pbi-panel-body">
+        ${ontimeRows||`<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Sin datos de tendencia mensual</div>`}
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;font-size:11px;color:var(--text3)">%TG Recuento de Guia</div>
+      </div>
+    </div>
+
+    <!-- DONA ON TIME -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">ON TIME GLOBAL</div>
+      <div class="pbi-panel-body">
+        <div class="pbi-dona-wrap">
+          <div class="pbi-dona-canvas">
+            <canvas id="dChartDona" width="140" height="140"></canvas>
+            <div class="pbi-dona-center">
+              <div class="pbi-dona-pct" style="color:${pctColor}">${pct}%</div>
+              <div class="pbi-dona-sublbl">ON TIME</div>
+            </div>
+          </div>
+          <div class="pbi-dona-legs">
+            <div class="pbi-dona-leg"><div class="pbi-dona-leg-left"><div class="pbi-dona-leg-dot" style="background:#22c55e"></div>A tiempo</div><div class="pbi-dona-leg-val">${(ot.si||0).toLocaleString()}</div></div>
+            <div class="pbi-dona-leg"><div class="pbi-dona-leg-left"><div class="pbi-dona-leg-dot" style="background:#ef4444"></div>Con retraso</div><div class="pbi-dona-leg-val">${(ot.no||0).toLocaleString()}</div></div>
+            <div class="pbi-dona-leg"><div class="pbi-dona-leg-left"><div class="pbi-dona-leg-dot" style="background:#f59e0b"></div>Sin entregar</div><div class="pbi-dona-leg-val">${(ot.no_entregado||0).toLocaleString()}</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ON TIME POR TRANSPORTADORA -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">COMPARATIVA ON TIME</div>
+      <div class="pbi-panel-body" style="height:180px;padding:10px 12px">
+        <canvas id="dChartTrans"></canvas>
+      </div>
+    </div>
+
+    <!-- TENDENCIA MENSUAL -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">TENDENCIA MENSUAL</div>
+      <div class="pbi-panel-body" style="height:180px;padding:10px 12px">
+        <canvas id="dChartMeses"></canvas>
+      </div>
+    </div>
+
+  </div>
+  <!-- ON TIME POR CIUDAD -->
+    <div class="pbi-panel">
+      <div class="pbi-panel-hdr">
+        ON TIME POR CIUDAD
+        <button class="pbi-btn-dl" onclick="descargarTabla('ontime_ciudad')">⬇ Excel</button>
+      </div>
+      <div style="max-height:280px;overflow-y:auto">
+        <table class="pbi-tbl">
+          <thead style="position:sticky;top:0;z-index:1;background:var(--surface)">
+            <tr><th>Ciudad</th><th>Total</th><th>A tiempo</th><th>Tarde</th><th>% OT</th></tr>
+          </thead>
+          <tbody>
+            ${(m.ontime_por_ciudad||[]).map(c=>{
+              const pctColor=c.pct>=80?"var(--green)":c.pct>=60?"var(--yellow)":"var(--red)";
+              return`<tr>
+                <td>${c.ciudad}</td>
+                <td style="font-family:'JetBrains Mono',monospace">${c.total.toLocaleString()}</td>
+                <td style="color:var(--green);font-family:'JetBrains Mono',monospace">${c.si.toLocaleString()}</td>
+                <td style="color:var(--red);font-family:'JetBrains Mono',monospace">${c.no.toLocaleString()}</td>
+                <td style="color:${pctColor};font-weight:700;font-family:'JetBrains Mono',monospace">${c.pct}%</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DEVOLUCIONES -->
+    <div class="pbi-panel" style="grid-column:span 2">
+      <div class="pbi-panel-hdr">
+        DEVOLUCIONES
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="pbi-panel-hdr-accent">${(m.devoluciones?.total||0).toLocaleString()} registros</span>
+          <button class="pbi-btn-dl" onclick="descargarTabla('devoluciones')">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="pbi-panel-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Por Transportadora</div>
+            ${(m.devoluciones?.por_transportadora||[]).length
+              ? (m.devoluciones.por_transportadora||[]).map(t=>{
+                  const c=carriers.find(c=>c.name===t.name);
+                  const color=c?.color||"#8892b0";
+                  return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+                    <span style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text2)">
+                      <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
+                      ${t.name}
+                    </span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text)">${t.cantidad.toLocaleString()}</span>
+                  </div>`;
+                }).join("")
+              : `<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin devoluciones detectadas</div>`
+            }
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Top Ciudades</div>
+            <div style="max-height:180px;overflow-y:auto">
+              ${(m.devoluciones?.por_ciudad||[]).length
+                ? (m.devoluciones.por_ciudad||[]).map(c=>`
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+                      <span style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${c.ciudad}</span>
+                      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--red);flex-shrink:0;margin-left:8px">${c.cantidad.toLocaleString()}</span>
+                    </div>`).join("")
+                : `<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin datos de ciudades</div>`
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <!-- BASE DE DATOS -->
+  <div class="pbi-base-panel">
+    <div class="pbi-base-hdr">
+      <span class="pbi-base-title">Base de Datos</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="pbi-base-count">${Math.min(100,data.total_filtrado||0)} de ${(data.total_filtrado||0).toLocaleString()} registros</span>
+        <button class="pbi-btn-dl" onclick="descargarBaseFiltrada()">⬇ Descargar filtrado</button>
+    </div>
+  </div>
+    
+    <div class="pbi-base-tbl-wrap">
+      <table class="pbi-base-tbl">
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>
+    <div class="pbi-info-bar">
+      ${Object.entries(m.filas_por_transportadora||{}).map(([n,v])=>{
+        const c=carriers.find(c=>c.name===n); const color=c?.color||"#8892b0";
+        return`<span><span style="color:${color}">●</span> ${n}: <span>${v.toLocaleString()}</span></span>`;
+      }).join("")}
+    </div>
+  </div>
+
+  </div>`; // .pbi-wrap
+
+  renderDashChips();
+  requestAnimationFrame(()=>{
+    renderDashDona(ot, pctColor);
+    renderDashTransChart(m.por_transportadora||[]);
+    renderDashMesesChart(m.tendencia_mensual||[]);
+  });
+}
+
+function onDashHistorialChange(val){
+  dashHistorialId=val||null;
+  dashFilters={numero_documento:"",mes:"",transportador:"",ciudad_destino:"",destinatario:""};
+  loadDashboard();
+}
+
+function renderDashChips(){
+  const labels={numero_documento:"Doc",mes:"Mes",transportador:"Transportadora",ciudad_destino:"Ciudad",destinatario:"Destinatario"};
+  const div=document.getElementById("dashChips"); if(!div) return;
+  div.innerHTML=Object.entries(dashFilters).filter(([,v])=>v).map(([k,v])=>`
+    <div class="pbi-chip"><span>${labels[k]}: ${v}</span><span class="pbi-chip-x" onclick="removeDashFilter('${k}')">✕</span></div>`).join("");
+}
+
+function applyDashFilters(){
+  dashFilters.numero_documento=(document.getElementById("df-doc")?.value||"").trim();
+  dashFilters.mes=(document.getElementById("df-mes")?.value||"").trim();
+  dashFilters.transportador=(document.getElementById("df-trans")?.value||"").trim();
+  dashFilters.ciudad_destino=(document.getElementById("df-ciudad")?.value||"").trim();
+  dashFilters.destinatario=(document.getElementById("df-dest")?.value||"").trim();
+  dashFilters.estado=(document.getElementById("df-estado")?.value||"").trim();
+  loadDashboard();
+}
+function clearDashFilters(){
+  dashFilters={numero_documento:"",mes:"",transportador:"",ciudad_destino:"",destinatario:"",estado:""};
+  loadDashboard();
+}
+function removeDashFilter(key){ dashFilters[key]=""; loadDashboard(); }
+
+function renderDashDona(ot, pctColor){
+  const canvas=document.getElementById("dChartDona"); if(!canvas) return;
+  dashCharts.dona=new Chart(canvas.getContext("2d"),{
+    type:"doughnut",
+    data:{labels:["A tiempo","Con retraso","Sin entregar"],datasets:[{data:[ot.si||0,ot.no||0,ot.no_entregado||0],backgroundColor:["#22c55e","#ef4444","#f59e0b"],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:false,cutout:"70%",plugins:{legend:{display:false},tooltip:{enabled:true}}}
+  });
+}
+
+function renderDashTransChart(porTrans){
+  const canvas=document.getElementById("dChartTrans"); if(!canvas||!porTrans.length) return;
+  const labels=porTrans.map(t=>t.name);
+  const pcts=porTrans.map(t=>t.pct);
+  const colors=porTrans.map(t=>{ const c=carriers.find(c=>c.name===t.name); return c?.color||"#5b6ef5"; });
+  dashCharts.trans=new Chart(canvas.getContext("2d"),{
+    type:"bar",
+    data:{labels,datasets:[{label:"% ON TIME",data:pcts,backgroundColor:colors.map(c=>c+"99"),borderColor:colors,borderWidth:2,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{color:"#4a5270",font:{family:"JetBrains Mono",size:9}},grid:{color:"#1e2333"}},x:{ticks:{color:"#4a5270",font:{family:"JetBrains Mono",size:9}},grid:{display:false}}}}
+  });
+}
+
+function renderDashMesesChart(tendencia){
+  const canvas=document.getElementById("dChartMeses"); if(!canvas||!tendencia.length) return;
+  dashCharts.meses=new Chart(canvas.getContext("2d"),{
+    type:"line",
+    data:{labels:tendencia.map(t=>t.mes.slice(0,3)),datasets:[{label:"% ON TIME",data:tendencia.map(t=>t.pct),borderColor:"#f59e0b",backgroundColor:"rgba(245,158,11,.12)",tension:0.4,fill:true,pointBackgroundColor:"#f59e0b",pointRadius:3,pointBorderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{color:"#4a5270",font:{family:"JetBrains Mono",size:9}},grid:{color:"#1e2333"}},x:{ticks:{color:"#4a5270",font:{family:"JetBrains Mono",size:9},autoSkip:false,maxRotation:0},grid:{display:false}}}}
+  });
+}
+
+function renderDashCiudades(top){
+  const div=document.getElementById("dCiudadesContent"); if(!div) return;
+  if(!top.length){div.innerHTML=`<div style="text-align:center;padding:30px;color:var(--text3);font-size:14px">Sin datos</div>`;return;}
+  const maxVal=top[0]?.cantidad||1;
+  div.innerHTML=top.map(({ciudad,cantidad})=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:13px;color:var(--text2);min-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ciudad}</span><div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden"><div style="width:${Math.round(cantidad/maxVal*100)}%;height:100%;background:#ef4444aa;border-radius:3px"></div></div><span style="font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--text);min-width:28px;text-align:right">${cantidad}</span></div>`).join("");
+}
+function renderDashTable(preview,cols){
+  const wrap=document.getElementById("dTableWrap"); if(!wrap) return;
+  if(!preview.length){wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Sin registros</div></div>`;return;}
+  const ths=cols.map(c=>`<th>${c}</th>`).join("");
+  const trs=preview.map(row=>{
+    const tds=cols.map(col=>{
+      const v=row[col]??"";
+      if(col==="ON TIME"){if(v==="SI")return`<td><span class="badge b-si">SI</span></td>`;if(v==="NO")return`<td><span class="badge b-no">NO</span></td>`;if(v==="NO ENTREGADO")return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;return`<td>${v}</td>`;}
+      if(col==="Transportador"){const c=carriers.find(c=>c.name===v);const color=c?.color||"#8892b0";return`<td><span class="badge" style="background:${color}20;color:${color}">${v}</span></td>`;}
+      if(col==="Guia"||col==="Numero_Documento")return`<td class="hl">${v}</td>`;
+      return`<td>${v}</td>`;
+    }).join("");
+    return`<tr>${tds}</tr>`;
+  }).join("");
+  wrap.innerHTML=`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+// ── HISTORIAL ─────────────────────────────────────────
+async function loadHistorial(){
+  try{
+    const r=await fetch(`${API}/historial`),data=await r.json(),div=document.getElementById("histContent");
+    if(!data.length){div.innerHTML=`<div class="empty-state"><div class="empty-icon">🕓</div><div class="empty-text">Sin registros</div></div>`;return;}
+    const rows=data.map(h=>{
+      const tags=(h.carriers||[]).map(n=>`<span class="hist-carrier-tag">${n}</span>`).join("");
+      return`<tr><td style="font-family:'JetBrains Mono',monospace;font-size:13px">${h.fecha}</td><td style="color:var(--text)">${h.archivo}</td><td style="font-family:'JetBrains Mono',monospace;font-weight:700">${(h.total_filas||0).toLocaleString()}</td><td><div class="hist-carriers">${tags}</div></td><td><div style="display:flex;gap:6px"><button class="btn-secondary btn-sm" onclick="window.location.href='${API}/download/${h.archivo}'">⬇</button><button class="btn-secondary btn-sm" onclick="verMetricas(${h.id})">📊</button><button class="btn-danger btn-sm" onclick="eliminarHistorial(${h.id})">🗑</button></div></td></tr>`;
+    }).join("");
+    div.innerHTML=`<table class="hist-table"><thead><tr><th>Fecha</th><th>Archivo</th><th>Filas</th><th>Transportadoras</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }catch(e){console.error(e);}
+}
+async function verMetricas(hid){dashHistorialId=hid;navTo("dashboard",null);}
+async function eliminarHistorial(hid){
+  if(!confirm("¿Eliminar este registro?")) return;
+  await fetch(`${API}/historial/${hid}`,{method:"DELETE"});
+  loadHistorial(); toast("success","🗑 Eliminado");
+}
+
+// ── CONFIG ────────────────────────────────────────────
+function renderCfgList(){
+  document.getElementById("cfgList").innerHTML=carriers.map(c=>`<div class="cfg-item ${selConfig===c.id?"active":""}" onclick="selCfg('${c.id}')"><div class="cdot" style="background:${c.color}"></div><span class="cfg-item-name">${c.name}</span><span class="cfg-item-tag">${c.isStatic?"Estática":"Custom"}</span></div>`).join("");
+}
+function selCfg(id){
+  selConfig=id; renderCfgList();
+  const carrier=carriers.find(c=>c.id===id),panel=document.getElementById("cfgPanel");
+  const cols=finalCols.filter(c=>!AUTO_COLS.has(c));
+  const rows=cols.map(col=>`<tr><td><span style="font-size:13px;font-family:'JetBrains Mono',monospace;padding:3px 8px;background:var(--surface2);border-radius:5px;white-space:nowrap">${col}</span></td><td style="text-align:center;color:var(--text3)">→</td><td><input class="mapping-input" data-col="${col}" value="${carrier.mapping?.[col]||""}" placeholder="Nombre en el Excel original"></td></tr>`).join("");
+  const delBtn=!carrier.isStatic?`<button class="btn-danger" style="margin-left:8px" onclick="deleteCarrier('${id}')">🗑 Eliminar</button>`:"";
+  panel.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div class="cdot" style="background:${carrier.color};width:13px;height:13px"></div><span style="font-size:15px;font-weight:800">${carrier.name}</span><span class="cbadge ${carrier.isStatic?"":"custom"}">${carrier.isStatic?"estática":"custom"}</span></div><p style="font-size:14px;color:var(--text2);margin-bottom:16px;line-height:1.6">Escribe el nombre <strong style="color:var(--text)">exacto</strong> de cada columna en el Excel original de ${carrier.name}.<br>Tip: sube un archivo en Procesar — el sistema sugiere el mapeo automáticamente.</p><div style="overflow-x:auto"><table class="mapping-table"><thead><tr><th>Columna Final</th><th style="text-align:center">↓</th><th>Nombre en Excel original</th></tr></thead><tbody>${rows}</tbody></table></div><div style="margin-top:16px;display:flex;align-items:center"><button class="btn-primary btn-sm" onclick="saveCfg('${id}')">💾 Guardar</button>${delBtn}</div>`;
+}
+async function saveCfg(id){
+  const mapping={};
+  document.querySelectorAll(".mapping-input").forEach(inp=>{mapping[inp.dataset.col]=inp.value.trim();});
+  try{
+    const r=await fetch(`${API}/carriers/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({mapping})});
+    if(!r.ok) throw new Error("Error");
+    const carrier=carriers.find(c=>c.id===id);
+    if(carrier) carrier.mapping={...(carrier.mapping||{}),...mapping};
+    toast("success","✅ Guardado");
+  }catch(e){toast("error","❌ "+e.message);}
+}
+
+// ── WATCH FOLDER ──────────────────────────────────────
+async function loadWatchStatus(){
+  try{
+    const r=await fetch(`${API}/watch`),d=await r.json();
+    updateWatchUI(d.activo,d.carpeta,d.espera);
+    if(d.cola&&d.cola.length) renderCola(d.cola);
+  }catch(e){}
+}
+function updateWatchUI(activo,carpeta,espera){
+  const dot=document.getElementById("watchDot"),txt=document.getElementById("watchStatusText"),ws=document.getElementById("watchStatus");
+  dot.className="sdot "+(activo?"on":"off");
+  txt.textContent=activo?`Activo — ${carpeta}`:"Inactivo";
+  ws.classList.toggle("active",activo);
+  if(carpeta) document.getElementById("watchFolder").value=carpeta;
+  if(espera)  document.getElementById("watchEspera").value=String(espera);
+}
+async function toggleWatch(activar){
+  const carpeta=document.getElementById("watchFolder").value.trim();
+  const espera=parseInt(document.getElementById("watchEspera").value);
+  if(activar&&!carpeta){toast("error","❌ Escribe la carpeta a vigilar");return;}
+  try{
+    const r=await fetch(`${API}/watch`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({activo:activar,carpeta,espera})});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error);
+    updateWatchUI(activar,carpeta,espera);
+    addLog(activar?`▶ Watch activo en: ${carpeta} (espera: ${espera} min)`:"⏹ Watch detenido");
+    toast(activar?"success":"info",activar?"▶ Watch Folder activado":"⏹ Watch Folder detenido");
+  }catch(e){toast("error","❌ "+e.message);}
+}
+async function watchProcesarAhora(){
+  try{await fetch(`${API}/watch/procesar_ahora`,{method:"POST"});addLog("⚡ Procesamiento forzado iniciado");toast("info","⚡ Procesando ahora...");}
+  catch(e){toast("error","❌ "+e.message);}
+}
+async function watchVaciarCola(){
+  if(!confirm("¿Vaciar la cola sin procesar?")) return;
+  try{await fetch(`${API}/watch/vaciar_cola`,{method:"POST"});renderCola([]);addLog("🗑 Cola vaciada");toast("info","🗑 Cola vaciada");}
+  catch(e){toast("error","❌ "+e.message);}
+}
+function renderCola(cola){
+  const div=document.getElementById("colaContent"),btn=document.getElementById("btnProcesarAhora");
+  if(!cola||!cola.length){
+    div.innerHTML=`<div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">Sin archivos en cola</div>`;
+    if(btn) btn.style.display="none"; return;
+  }
+  if(btn) btn.style.display="flex";
+  div.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:14px">
+    <thead><tr>
+      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Archivo</th>
+      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Transportadora</th>
+      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Método</th>
+      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Confianza</th>
+    </tr></thead>
+    <tbody>${cola.map(item=>{
+      const c=carriers.find(c=>c.name===item.carrier),color=c?.color||"#8892b0";
+      const scoreColor=item.score>=80?"var(--green)":item.score>=50?"var(--yellow)":"var(--red)";
+      return`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 12px;font-family:'JetBrains Mono',monospace;color:var(--text)">${item.archivo}</td>
+        <td style="padding:8px 12px"><span class="badge" style="background:${color}20;color:${color}">${item.carrier}</span></td>
+        <td style="padding:8px 12px;color:var(--text2);font-size:13px">${item.metodo==="nombre"?"📝 Nombre":"🔍 Columnas"}</td>
+        <td style="padding:8px 12px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${scoreColor}">${item.score}%</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+function addLog(msg){
+  const log=document.getElementById("watchLog"); if(!log) return;
+  const ts=new Date().toLocaleTimeString(),line=document.createElement("div");
+  line.className="watch-log-line";
+  line.innerHTML=`<span style="color:var(--text3)">[${ts}]</span> ${msg}`;
+  log.appendChild(line); log.scrollTop=log.scrollHeight;
+}
+function clearLog(){const log=document.getElementById("watchLog");if(log) log.innerHTML="";}
+
+// ── MODAL ─────────────────────────────────────────────
+function renderColors(){document.getElementById("colorOpts").innerHTML=COLORS.map(c=>`<div class="color-opt ${c===selColor?"sel":""}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join("");}
+function pickColor(c){selColor=c;renderColors();}
+function openAddModal(){document.getElementById("newName").value="";document.getElementById("addModal").classList.add("open");}
+function closeModal(id){document.getElementById(id).classList.remove("open");}
+
+async function crearCarrier(){
+  const name=document.getElementById("newName").value.trim();
+  if(!name){toast("error","❌ Escribe un nombre");return;}
+  try{
+    const r=await fetch(`${API}/carriers`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,color:selColor})});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error);
+    closeModal("addModal"); uploadedFiles[d.id]=[null,null];
+    await loadCarriers(); toast("success",`✅ "${name}" creada`);
+    setTimeout(()=>{navTo("config",null);selCfg(d.id);},300);
+  }catch(e){toast("error","❌ "+e.message);}
+}
+async function deleteCarrier(id){
+  if(!confirm("¿Eliminar esta transportadora?")) return;
+  try{
+    const r=await fetch(`${API}/carriers/${id}`,{method:"DELETE"}),d=await r.json();
+    if(!r.ok) throw new Error(d.error);
+    delete uploadedFiles[id]; selConfig=null;
+    await loadCarriers();
+    document.getElementById("cfgPanel").innerHTML=`<div class="empty-state"><div class="empty-icon">👈</div><div class="empty-text">Selecciona una transportadora</div></div>`;
+    toast("success","🗑 Eliminada");
+  }catch(e){toast("error","❌ "+e.message);}
+}
+
+async function limpiarTodo(){
+  carriers.forEach(c=>{uploadedFiles[c.id]=[null,null];});
+  resultFile=null;
+  document.getElementById("s-filas").textContent="—";
+  document.getElementById("s-ontime").textContent="—";
+  document.getElementById("calidadSection").innerHTML="";
+  document.getElementById("previewSection").innerHTML="";
+  renderGrid();
+  try{await fetch(`${API}/cleanup`,{method:"POST"});}catch{}
+  toast("success","🗑 Todo limpiado");
+}
+
+function setLoading(on){document.getElementById("lb").classList.toggle("indeterminate",on);}
+function toast(type,msg){
+  const c=document.getElementById("toasts"),t=document.createElement("div");
+  t.className=`toast ${type}`;t.textContent=msg;c.appendChild(t);
+  setTimeout(()=>t.remove(),4000);
+}
+// DESCARGA DE TABLAS DEL DASHBOARD 
+function descargarTabla(tipo){
+  if(!dashData){toast("error","❌ Sin datos");return;}
+  const m=dashData.metricas||{};
+  let rows=[],headers=[];
+
+  if(tipo==="estados"){
+    headers=["Estado","Recuento","%TG"];
+    const total=m.total_filas||1;
+    rows=(m.estados||[]).map(e=>[e.estado,e.cantidad,(e.cantidad/total*100).toFixed(2)+"%"]);
+  }else if(tipo==="ciudades"){
+    headers=["Ciudad Destino","Remesas","%TG"];
+    const total=m.total_filas||1;
+    rows=(m.participacion_ciudades||[]).map(c=>[c.ciudad,c.cantidad,(c.cantidad/total*100).toFixed(2)+"%"]);
+  }else if(tipo==="ontime_ciudad"){
+    headers=["Ciudad","Total","A tiempo","Tarde","% ON TIME"];
+    rows=(m.ontime_por_ciudad||[]).map(c=>[c.ciudad,c.total,c.si,c.no,c.pct+"%"]);
+  }else if(tipo==="devoluciones"){
+    headers=["Transportadora","Devoluciones"];
+    rows=(m.devoluciones?.por_transportadora||[]).map(t=>[t.name,t.cantidad]);
+  }
+
+  if(!rows.length){toast("error","❌ Sin datos para descargar");return;}
+  _exportarCSV(headers,rows,`${tipo}_${new Date().toISOString().slice(0,10)}.csv`);
+}
+
+function descargarBaseFiltrada(){
+  const params=new URLSearchParams();
+  Object.entries(dashFilters).forEach(([k,v])=>{if(v) params.set(k,v);});
+  if(dashHistorialId) params.set("historial_id",dashHistorialId);
+  window.location.href=`${API}/dashboard/download?${params}`;
+}
+
+function _exportarCSV(headers,rows,filename){
+  const csv=[
+    headers.join(","),
+    ...rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","))
+  ].join("\n");
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+["addModal","mapeoModal"].forEach(id=>{
+  document.getElementById(id).addEventListener("click",function(e){if(e.target===this)closeModal(id);});
+});
+
+init();
+</script>
+</body>
+</html>
