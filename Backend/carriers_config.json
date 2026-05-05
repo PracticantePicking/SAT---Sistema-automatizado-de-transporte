@@ -96,6 +96,25 @@
         "Ciudad Destino": "",
         "CANAL": ""
       }
+    },
+    {
+      "id": "carrier_db5f51ce",
+      "name": "DEPRISA",
+      "color": "#1B3A6B",
+      "isStatic": false,
+      "mapping": {
+        "Numero_Documento": "",
+        "NOMBRE TARIFARIO": "",
+        "Guia": "",
+        "Numero Unidades": "",
+        "Estado": "",
+        "Fec_Entrega": "",
+        "Fec_AproxEntrega": "",
+        "Fecha de captura de guia": "",
+        "Destinatario": "",
+        "Ciudad Destino": "",
+        "CANAL": ""
+      }
     }
   ],
   "ramas": [
@@ -120,7 +139,8 @@
         "carrier_f5087a8d",
         "carrier_555a1ec0",
         "carrier_e17a5845",
-        "carrier_1bf21ecd"
+        "carrier_1bf21ecd",
+        "carrier_db5f51ce"
       ]
     },
     {
