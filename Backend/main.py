@@ -10,7 +10,7 @@ from routers import carriers, upload, process, dashboard, historial, facturacion
 from database import init_db
 from config import load_config, BASE_DIR
 from routers import carriers, upload, process, dashboard, historial, watch
-from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl
+from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, devoluciones
 
 # 1. SOCKET.IO 
 sio = socketio.AsyncServer(
@@ -76,7 +76,8 @@ app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(historial.router, prefix="/api", tags=["Historial"])
 app.include_router(facturacion.router, prefix="/api", tags=["Facturacion"])
 app.include_router(picking.router, prefix="/api", tags=["Picking"])
-app.include_router(sbl.router,     prefix="/api", tags=["SBL"])
+app.include_router(sbl.router,          prefix="/api", tags=["SBL"])
+app.include_router(devoluciones.router, prefix="/api", tags=["Devoluciones"])
 
 
 #  6. ENDPOINT RAÍZ 
