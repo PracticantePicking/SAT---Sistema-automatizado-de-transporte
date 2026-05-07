@@ -15,6 +15,7 @@ import pandas as pd
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from config import UPLOAD_FOLDER
+from database import guardar_picking
 
 router  = APIRouter()
 _estado = { "df": None, "filename": None, "cargado": None }
@@ -171,6 +172,7 @@ async def upload_picking(file: UploadFile = File(...)):
     try:
         df       = _leer_picking(filepath)
         metricas = _calcular_metricas(df)
+        guardar_picking(file.filename, len(df), metricas) 
         _estado.update({ "df": df, "filename": file.filename,
                          "cargado": datetime.now().strftime("%Y-%m-%d %H:%M:%S") })
         return { "ok": True, "filename": file.filename,

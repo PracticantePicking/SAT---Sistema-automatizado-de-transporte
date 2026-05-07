@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from config import UPLOAD_FOLDER
+from database import guardar_sbl
 
 router  = APIRouter()
 _estado = { "df": None, "filename": None, "cargado": None }
@@ -215,6 +216,7 @@ async def upload_sbl(file: UploadFile = File(...)):
     try:
         df       = _leer_sbl(filepath)
         metricas = _calcular_metricas_sbl(df)
+        guardar_sbl(file.filename, len(df), metricas) 
         _estado.update({
             "df":       df,
             "filename": file.filename,

@@ -1,589 +1,481 @@
-import { useState, useRef, useMemo } from 'react'
-import {
-  Chart as ChartJS, BarElement, LineElement, PointElement,
-  CategoryScale, LinearScale, Tooltip, Legend
-} from 'chart.js'
-import { Bar, Line } from 'react-chartjs-2'
+import { useState, useEffect, useCallback } from 'react'
+import ReactECharts from 'echarts-for-react'
 import { useToast } from '../components/Toast'
-
-ChartJS.register(BarElement, LineElement, PointElement,
-  CategoryScale, LinearScale, Tooltip, Legend)
 
 const BASE_URL = 'http://localhost:5000'
 
-const MESES = {
-  1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril',
-  5:'Mayo', 6:'Junio', 7:'Julio', 8:'Agosto',
-  9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'
-}
-
 const fmtNum = v => Number(v || 0).toLocaleString('es-CO')
-const fmtPct = v => `${Number(v || 0).toFixed(1)}%`
 const fmtDec = v => Number(v || 0).toFixed(1)
 
-// ── KPI Card ──────────────────────────────────────────────────────────────
-function KpiCard({ label, valor, sub, color = 'var(--accent)', icono }) {
+const META_UPH = 500
+
+const C = {
+  fondo:    '#F8FAFC',
+  card:     '#FFFFFF',
+  borde:    '#E2E8F0',
+  texto:    '#1A202C',
+  textoMut: '#718096',
+  azul:     '#2563EB',
+  verde:    '#16A34A',
+  amarillo: '#CA8A04',
+  rojo:     '#DC2626',
+  morado:   '#7C3AED',
+  cyan:     '#0891B2',
+}
+
+const THEME = {
+  backgroundColor: 'transparent',
+  textStyle: { color: C.texto, fontFamily: 'Inter, sans-serif' },
+  grid: { left:'3%', right:'4%', bottom:'8%', containLabel:true },
+  xAxis: {
+    axisLine:  { lineStyle: { color: C.borde } },
+    axisLabel: { color: C.textoMut, fontSize: 11 },
+    splitLine: { lineStyle: { color: '#F1F5F9', type: 'dashed' } },
+  },
+  yAxis: {
+    axisLine:  { lineStyle: { color: C.borde } },
+    axisLabel: { color: C.textoMut, fontSize: 11 },
+    splitLine: { lineStyle: { color: '#F1F5F9', type: 'dashed' } },
+  },
+  tooltip: {
+    backgroundColor: '#FFFFFF',
+    borderColor:     C.borde,
+    textStyle:       { color: C.texto, fontSize: 12 },
+    extraCssText:    'box-shadow: 0 4px 20px rgba(0,0,0,0.1)',
+  },
+  legend: { textStyle: { color: C.textoMut, fontSize: 11 } },
+}
+
+function KpiCard({ label, valor, sub, color }) {
   return (
-    <div className="card" style={{ padding:'18px 20px' }}>
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontSize:'0.72rem', fontWeight:600, color:'var(--text-muted)',
-            textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'8px' }}>
-            {label}
-          </div>
-          <div style={{ fontSize:'1.8rem', fontWeight:700, color, lineHeight:1 }}>
-            {valor}
-          </div>
-          {sub && (
-            <div style={{ fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'6px' }}>
-              {sub}
-            </div>
-          )}
-        </div>
-        {icono && (
-          <div style={{ fontSize:'1.6rem', opacity:0.15 }}>{icono}</div>
-        )}
+    <div style={{ background:C.card, borderRadius:'12px', padding:'18px 20px',
+      border:`1px solid ${C.borde}`, flex:1, minWidth:'160px',
+      boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontSize:'0.72rem', fontWeight:600, color:C.textoMut,
+        textTransform:'uppercase', letterSpacing:'0.8px', marginBottom:'8px' }}>
+        {label}
       </div>
+      <div style={{ fontSize:'1.8rem', fontWeight:700, color: color || C.azul, lineHeight:1 }}>
+        {valor}
+      </div>
+      {sub && (
+        <div style={{ fontSize:'0.72rem', color:C.textoMut, marginTop:'6px' }}>{sub}</div>
+      )}
     </div>
   )
 }
 
-// ── Panel contenedor ──────────────────────────────────────────────────────
-function Panel({ titulo, badge, subtitulo, children }) {
+function Panel({ titulo, sub, children }) {
   return (
-    <div className="card">
-      <div className="card-header">
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <span className="card-title" style={{ fontSize:'0.9rem' }}>{titulo}</span>
-            {badge && (
-              <span className="badge badge-accent" style={{ fontSize:'0.7rem' }}>
-                {badge}
-              </span>
-            )}
-          </div>
-          {subtitulo && (
-            <div style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginTop:'2px' }}>
-              {subtitulo}
-            </div>
-          )}
-        </div>
+    <div style={{ background:C.card, borderRadius:'12px', padding:'18px',
+      border:`1px solid ${C.borde}`, boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontWeight:600, fontSize:'0.9rem', color:C.texto, marginBottom:'2px' }}>
+        {titulo}
       </div>
-      <div style={{ padding:'16px' }}>{children}</div>
+      {sub && (
+        <div style={{ fontSize:'0.75rem', color:C.textoMut, marginBottom:'14px' }}>{sub}</div>
+      )}
+      {children}
     </div>
   )
 }
 
-// ── Gráfico barras con línea de meta ──────────────────────────────────────
-function GraficoMeta({ labels, valores, meta, colorOk, colorFail, labelSerie }) {
-  const chartData = useMemo(() => ({
-    labels,
-    datasets: [
-      {
-        type:            'bar',
-        label:           labelSerie,
-        data:            valores,
-        backgroundColor: valores.map(v => v >= meta ? colorOk + 'CC' : colorFail + 'CC'),
-        borderColor:     valores.map(v => v >= meta ? colorOk : colorFail),
-        borderWidth:     1,
-        borderRadius:    4,
-        order:           2,
-      },
-      {
-        type:        'line',
-        label:       `Meta (${fmtDec(meta)})`,
-        data:        labels.map(() => meta),
-        borderColor: '#DC2626',
-        borderWidth: 2,
-        borderDash:  [6, 4],
-        pointRadius: 0,
-        fill:        false,
-        order:       1,
-      }
-    ]
-  }), [labels, valores, meta])
-
-  return (
-    <Bar data={chartData} options={{
-      responsive:          true,
-      maintainAspectRatio: true,
-      aspectRatio:         2.2,
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { font:{ family:'Inter,sans-serif', size:11 }, color:'#4A5568',
-            padding:12, boxWidth:12 }
-        },
-        tooltip: {
-          callbacks: {
-            afterBody: (items) => {
-              const item = items[0]
-              if (item?.datasetIndex === 0) {
-                const pct = meta > 0
-                  ? Math.min((item.raw / meta * 100), 100).toFixed(1) : 0
-                return [`${item.raw >= meta ? '✅ Cumple' : '❌ Bajo meta'} — ${pct}% de la meta`]
-              }
-              return []
-            }
-          }
-        }
-      },
-      scales: {
-        y: { beginAtZero:true,
-          grid:  { color:'rgba(0,0,0,0.05)' },
-          ticks: { callback: v => fmtDec(v), font:{ size:10 }, color:'#718096' } },
-        x: { grid: { display:false },
-          ticks: { font:{ size:10 }, color:'#718096',
-            maxRotation:35, minRotation:35 } }
-      }
-    }} />
-  )
-}
-
-// ── Gráfico línea tendencia mensual ───────────────────────────────────────
-function GraficoTendencia({ data: chartData }) {
-  return (
-    <Line data={chartData} options={{
-      responsive:          true,
-      maintainAspectRatio: true,
-      aspectRatio:         2.8,
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { font:{ family:'Inter,sans-serif', size:11 }, color:'#4A5568',
-            padding:12, boxWidth:12 }
-        }
-      },
-      scales: {
-        y: { beginAtZero:false,
-          grid:  { color:'rgba(0,0,0,0.05)' },
-          ticks: { callback: v => fmtDec(v), font:{ size:10 }, color:'#718096' } },
-        x: { grid: { display:false },
-          ticks: { font:{ size:10 }, color:'#718096' } }
-      }
-    }} />
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-//  PÁGINA: SBL
-// ══════════════════════════════════════════════════════════════════════════
 function SBL() {
-  const toast    = useToast()
-  const inputRef = useRef(null)
-
+  const toast = useToast()
   const [data,     setData]     = useState(null)
-  const [estado,   setEstado]   = useState(null)
   const [cargando, setCargando] = useState(false)
-  const [subiendo, setSubiendo] = useState(false)
-  const [filtros,  setFiltros]  = useState({ operario:'', mes:0, año:0, dia:0 })
+  const [filtros,  setFiltros]  = useState({
+    operario: '', mes_num: 0, ano: 0, fecha: ''
+  })
 
-  // ── Subir archivo ─────────────────────────────────────────────────────
-  async function handleFile(file) {
-    if (!file) return
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      toast.warning('Solo se aceptan archivos .xlsx o .xls'); return
-    }
-    setSubiendo(true)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const res  = await fetch(`${BASE_URL}/api/sbl/upload`, { method:'POST', body:form })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.detail || 'Error al subir')
-      setEstado({ filename:json.filename, cargado:json.cargado, filas:json.filas })
-      setData(json)
-      toast.success(`Archivo cargado — ${fmtNum(json.filas)} registros`)
-    } catch (e) {
-      toast.error(e.message || 'Error al procesar')
-    } finally { setSubiendo(false) }
-  }
-
-  // ── Aplicar filtros ───────────────────────────────────────────────────
-  async function aplicarFiltros(override = null) {
-    const f = override || filtros
-    if (!estado) return
+  const cargarDashboard = useCallback(async (f = filtros) => {
     setCargando(true)
     try {
       const params = new URLSearchParams()
-      if (f.operario)  params.append('operario', f.operario)
-      if (f.mes > 0)   params.append('mes',      String(f.mes))
-      if (f.año > 0)   params.append('año',      String(f.año))
-      if (f.dia > 0)   params.append('dia',      String(f.dia))
-      const res  = await fetch(`${BASE_URL}/api/sbl/metricas?${params}`)
+      if (f.operario)    params.append('operario', f.operario)
+      if (f.mes_num > 0) params.append('mes_num',  f.mes_num)
+      if (f.ano > 0)     params.append('ano',      f.ano)
+      if (f.fecha)       params.append('fecha',    f.fecha)
+      const res  = await fetch(`${BASE_URL}/api/sbl2/dashboard?${params}`)
       const json = await res.json()
-      if (!res.ok) throw new Error(json.detail)
+      if (!res.ok) throw new Error(json.detail || 'Error')
       setData(json)
     } catch (e) {
-      toast.error('Error al filtrar: ' + e.message)
-    } finally { setCargando(false) }
+      toast.error('Error al cargar: ' + e.message)
+    } finally {
+      setCargando(false)
+    }
+  }, [])
+
+  useEffect(() => { cargarDashboard() }, [])
+
+  function handleFiltro(key, value) {
+    const n = { ...filtros, [key]: value }
+    setFiltros(n)
+    cargarDashboard(n)
   }
 
   function limpiarFiltros() {
-    const vacios = { operario:'', mes:0, año:0, dia:0 }
-    setFiltros(vacios)
-    aplicarFiltros(vacios)
+    const v = { operario:'', mes_num:0, ano:0, fecha:'' }
+    setFiltros(v)
+    cargarDashboard(v)
   }
 
-  // ── Datos ─────────────────────────────────────────────────────────────
-  const m  = data?.metricas       || {}
-  const k  = m.kpis               || {}
-  const vf = data?.valores_filtro || {}
+  const kpis     = data?.kpis           || {}
+  const vf       = data?.valores_filtro || {}
+  const tendencia = data?.tendencia     || []
+  const ranking   = data?.ranking       || []
+  const tdDiaria  = data?.tendencia_diaria || []
 
-  // Datos gráfico UPH por operario
-  const operarios = (m.por_operario || []).map(o => o.Operario)
-  const uphs      = (m.por_operario || []).map(o => o.uph)
-  const lphs      = (m.por_operario || []).map(o => o.lph)
+  // ── Gráfico tendencia mensual UPH ─────────────────────────────────────
+  const opTendencia = {
+    ...THEME,
+    tooltip: { ...THEME.tooltip, trigger:'axis',
+      formatter: p => `<div style="padding:4px 8px">
+        <b>${p[0]?.axisValue}</b><br/>
+        UPH: <b style="color:${C.azul}">${p[0]?.value}</b><br/>
+        <span style="color:${C.textoMut}">Meta: ${META_UPH}</span>
+      </div>` },
+    legend: { ...THEME.legend, data:['UPH','Meta'] },
+    xAxis: { ...THEME.xAxis, type:'category',
+      data: tendencia.map(d => d.nombre || d.mes),
+      axisLabel: { ...THEME.xAxis.axisLabel, rotate:30 } },
+    yAxis: { ...THEME.yAxis, type:'value' },
+    series: [
+      { name:'UPH', type:'line', data:tendencia.map(d=>d.uph),
+        smooth:true, symbol:'circle', symbolSize:7,
+        lineStyle:{ color:C.azul, width:2.5 }, itemStyle:{ color:C.azul },
+        areaStyle:{ color:{ type:'linear',x:0,y:0,x2:0,y2:1,
+          colorStops:[{offset:0,color:'rgba(37,99,235,0.15)'},{offset:1,color:'rgba(37,99,235,0)'}]}} },
+      { name:'Meta', type:'line', data:tendencia.map(()=>META_UPH),
+        lineStyle:{ color:C.rojo, width:1.5, type:'dashed' },
+        itemStyle:{ color:C.rojo }, symbol:'none' },
+    ]
+  }
 
-  // Datos gráfico tendencia mensual
-  const dataTendencia = useMemo(() => {
-    const arr = m.tendencia_mensual || []
-    return {
-      labels: arr.map(x => `${MESES[x._mes]} ${x._año}`),
-      datasets: [
-        {
-          label:           'UPH promedio',
-          data:            arr.map(x => x.uph),
-          borderColor:     '#2563EB',
-          backgroundColor: 'rgba(37,99,235,0.08)',
-          fill:            true,
-          tension:         0.3,
-          pointRadius:     5,
-          pointBackgroundColor: '#2563EB',
+  const opUPH = {
+    ...THEME,
+    grid: { left:'3%', right:'5%', bottom:'25%', top:'15%', containLabel:true },
+    tooltip: { ...THEME.tooltip, trigger:'axis', axisPointer:{ type:'shadow' },
+      formatter: p => {
+        const r = ranking[p[0]?.dataIndex]
+        return `<div style="padding:6px 10px;font-size:13px">
+          <b>${r?.operario}</b><br/>
+          UPH: <b style="color:${p[0]?.value >= META_UPH ? C.verde : C.rojo}">${p[0]?.value}</b><br/>
+          Unidades: ${fmtNum(r?.unidades)} · Días: ${r?.registros}
+        </div>`
+      }
+    },
+    legend: { ...THEME.legend, data:['UPH','Meta'], top:0 },
+    xAxis: { ...THEME.xAxis, type:'category',
+      data: ranking.map(r => r.operario),
+      axisLabel: { color:C.textoMut, fontSize:10, rotate:40,
+        interval:0, margin:8 } },
+    yAxis: { ...THEME.yAxis, type:'value',
+      axisLabel: { color:C.textoMut, fontSize:11 } },
+    series: [
+      {
+        name:'UPH', type:'bar', data:ranking.map(r=>r.uph),
+        barMaxWidth:40,
+        itemStyle: {
+          color: p => {
+            const v = ranking[p.dataIndex]?.uph||0
+            return v>=META_UPH ? C.verde : v>=META_UPH*0.8 ? C.amarillo : C.rojo
+          },
+          borderRadius:[4,4,0,0]
         },
-        {
-          label:       'Meta (500)',
-          data:        arr.map(() => 500),
-          borderColor: '#DC2626',
-          borderWidth: 2,
-          borderDash:  [6, 4],
-          pointRadius: 0,
-          fill:        false,
-        }
-      ]
-    }
-  }, [m])
+        label:{ show:true, position:'top', fontSize:10, color:C.texto,
+          formatter: p => fmtDec(p.value) }
+      },
+      {
+        name:'Meta', type:'line', data:ranking.map(()=>META_UPH),
+        lineStyle:{ color:C.rojo, width:2, type:'dashed' },
+        itemStyle:{ color:C.rojo }, symbol:'none'
+      }
+    ]
+  }
 
-  // ── RENDER ────────────────────────────────────────────────────────────
+  // ── Gráfico LPH por operario (barras) ────────────────────────────────
+  // ── Gráfico LPH por operario ─────────────────────────────────────────
+const opLPH = {
+    ...THEME,
+    grid: { left:'3%', right:'5%', bottom:'25%', top:'10%', containLabel:true },
+    tooltip: { ...THEME.tooltip, trigger:'axis', axisPointer:{ type:'shadow' } },
+    xAxis: { ...THEME.xAxis, type:'category',
+      data: ranking.map(r=>r.operario),
+      axisLabel: { color:C.textoMut, fontSize:10, rotate:40, interval:0, margin:8 } },
+    yAxis: { ...THEME.yAxis, type:'value',
+      axisLabel: { color:C.textoMut, fontSize:11 } },
+    series: [{
+      name:'LPH', type:'bar', data:ranking.map(r=>r.lph),
+      barMaxWidth:40,
+      itemStyle:{ color:C.morado, borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'top', fontSize:10, color:C.texto,
+        formatter: p => fmtDec(p.value) }
+    }]
+  }
+
+  // ── Gráfico tendencia diaria ─────────────────────────────────────────
+  // ── Gráfico tendencia diaria ─────────────────────────────────────────
+  const opDiaria = {
+    ...THEME,
+    grid: { left:'3%', right:'3%', bottom:'20%', top:'10%', containLabel:true },
+    tooltip: { ...THEME.tooltip, trigger:'axis',
+      formatter: p => `<div style="padding:6px 10px;font-size:13px">
+        <b>${p[0]?.axisValue}</b><br/>
+        UPH: <b style="color:${C.cyan}">${p[0]?.value}</b>
+      </div>` },
+    legend: { ...THEME.legend, data:['UPH diario','Meta'], top:0 },
+    xAxis: { ...THEME.xAxis, type:'category',
+      data: tdDiaria.map(d=>d.fecha?.slice(5)||d.fecha),
+      axisLabel: { color:C.textoMut, fontSize:10, rotate:45, interval:2 } },
+    yAxis: { ...THEME.yAxis, type:'value',
+      axisLabel: { color:C.textoMut, fontSize:11 } },
+    series: [
+      { name:'UPH diario', type:'bar', data:tdDiaria.map(d=>d.uph),
+        barMaxWidth:16,
+        itemStyle:{ color: p => {
+          const v = tdDiaria[p.dataIndex]?.uph||0
+          return v>=META_UPH ? C.verde+'CC' : C.rojo+'99'
+        }, borderRadius:[3,3,0,0] } },
+      { name:'Meta', type:'line', data:tdDiaria.map(()=>META_UPH),
+        lineStyle:{ color:C.rojo, width:2, type:'dashed' },
+        itemStyle:{ color:C.rojo }, symbol:'none' }
+    ]
+  }
+
+  const selectStyle = {
+    background:'#FFFFFF', border:`1px solid ${C.borde}`, color:C.texto,
+    borderRadius:'8px', padding:'7px 12px', fontSize:'0.8rem',
+    cursor:'pointer', outline:'none',
+  }
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+    <div style={{ background:C.fondo, minHeight:'100vh', padding:'20px',
+      fontFamily:'Inter, sans-serif', color:C.texto }}>
 
-      {/* ── ZONA DE CARGA ────────────────────────────────────────────── */}
-      <div className="card" style={{ padding:'16px 20px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
-          <input ref={inputRef} type="file" accept=".xlsx,.xls"
-            style={{ display:'none' }}
-            onChange={e => handleFile(e.target.files[0])} />
-          <button className="btn btn-primary" style={{ whiteSpace:'nowrap' }}
-            onClick={() => inputRef.current?.click()} disabled={subiendo}>
-            {subiendo
-              ? <><div className="spinner" style={{ width:'14px', height:'14px' }} /> Procesando...</>
-              : '📂 Cargar archivo SBL'}
-          </button>
-          <div style={{ flex:1, minWidth:'220px', padding:'10px 14px',
-            border:'1px dashed var(--border)', borderRadius:'var(--radius-md)',
-            fontSize:'0.78rem', color:'var(--text-muted)', cursor:'pointer', textAlign:'center' }}
-            onClick={() => inputRef.current?.click()}
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}>
-            {estado
-              ? `📄 ${estado.filename} — ${fmtNum(estado.filas)} registros — ${estado.cargado}`
-              : 'Arrastra el Excel de SBL aquí o haz clic en el botón'}
-          </div>
-        </div>
+      {/* Header */}
+      <div style={{ marginBottom:'20px' }}>
+        <h1 style={{ fontSize:'1.4rem', fontWeight:700, margin:0, color:C.texto }}>
+          Productividad SBL
+        </h1>
+        <p style={{ fontSize:'0.82rem', color:C.textoMut, margin:'4px 0 0' }}>
+          Sistema de Bandas Logísticas · Datos desde AtpPut · Meta: {META_UPH} u/hora
+        </p>
       </div>
 
-      {/* ── FILTROS ──────────────────────────────────────────────────── */}
-      {data && (
-        <div className="card" style={{ padding:'12px 18px' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+      {/* Filtros */}
+      <div style={{ background:C.card, borderRadius:'12px', padding:'14px 18px',
+        border:`1px solid ${C.borde}`, marginBottom:'20px',
+        boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+          <span style={{ fontSize:'0.78rem', fontWeight:600, color:C.textoMut }}>Filtros</span>
 
-            <select className="form-select" style={{ width:'180px' }}
-              value={filtros.operario}
-              onChange={e => {
-                const n = { ...filtros, operario: e.target.value }
-                setFiltros(n); aplicarFiltros(n)
-              }}>
-              <option value="">Todos los operarios</option>
-              {(vf.operarios || []).map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+          <select value={filtros.operario} style={selectStyle}
+            onChange={e => handleFiltro('operario', e.target.value)}>
+            <option value="">Todos los operarios</option>
+            {(vf.operarios||[]).map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
 
-            <select className="form-select" style={{ width:'150px' }}
-              value={filtros.mes}
-              onChange={e => {
-                const n = { ...filtros, mes: Number(e.target.value) }
-                setFiltros(n); aplicarFiltros(n)
-              }}>
-              <option value={0}>Todos los meses</option>
-              {(vf.meses || []).map(m => (
-                <option key={m} value={m}>{MESES[m]}</option>
-              ))}
-            </select>
+          <select value={filtros.mes_num} style={selectStyle}
+            onChange={e => handleFiltro('mes_num', Number(e.target.value))}>
+            <option value={0}>Todos los meses</option>
+            {(vf.meses||[]).map(m => (
+              <option key={m.num} value={m.num}>{m.nombre}</option>
+            ))}
+          </select>
 
-            <select className="form-select" style={{ width:'100px' }}
-              value={filtros.año}
-              onChange={e => {
-                const n = { ...filtros, año: Number(e.target.value) }
-                setFiltros(n); aplicarFiltros(n)
-              }}>
-              <option value={0}>Todos los años</option>
-              {(vf.años || []).map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
+          <select value={filtros.ano} style={selectStyle}
+            onChange={e => handleFiltro('ano', Number(e.target.value))}>
+            <option value={0}>Todos los años</option>
+            {(vf.anos||[]).map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
 
-            <select className="form-select" style={{ width:'130px' }}
-              value={filtros.dia}
-              onChange={e => {
-                const n = { ...filtros, dia: Number(e.target.value) }
-                setFiltros(n); aplicarFiltros(n)
-              }}>
-              <option value={0}>Todos los días</option>
-              {(vf.dias || []).map(d => (
-                <option key={d} value={d}>Día {d}</option>
-              ))}
-            </select>
+          <select value={filtros.fecha} style={selectStyle}
+            onChange={e => handleFiltro('fecha', e.target.value)}>
+            <option value="">Todos los días</option>
+            {(vf.fechas||[]).map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
 
-            <button className="btn btn-secondary btn-sm" onClick={limpiarFiltros}>
-              ✕ Limpiar
-            </button>
+          <button onClick={limpiarFiltros} style={{ ...selectStyle,
+            background:'transparent', color:C.textoMut }}>
+            ✕ Limpiar
+          </button>
 
-            <span style={{ fontSize:'0.75rem', color:'var(--text-muted)', marginLeft:'4px' }}>
-              {fmtNum(data.total_filas)} registros
-              {filtros.operario && ` · ${filtros.operario}`}
-              {filtros.mes > 0  && ` · ${MESES[filtros.mes]}`}
-              {filtros.año > 0  && ` · ${filtros.año}`}
-              {filtros.dia > 0  && ` · Día ${filtros.dia}`}
-            </span>
+          {cargando && (
+            <div style={{ display:'flex', alignItems:'center', gap:'6px',
+              color:C.textoMut, fontSize:'0.78rem' }}>
+              <div style={{ width:'14px', height:'14px',
+                border:`2px solid ${C.borde}`, borderTop:`2px solid ${C.azul}`,
+                borderRadius:'50%', animation:'spin 1s linear infinite' }} />
+              Cargando...
+            </div>
+          )}
+        </div>
+
+        {data && (
+          <div style={{ marginTop:'10px', paddingTop:'10px',
+            borderTop:`1px solid ${C.borde}`,
+            fontSize:'0.72rem', color:C.textoMut, display:'flex', gap:'16px' }}>
+            <span>{fmtNum(data.total_filas)} registros</span>
+            {filtros.operario  && <span style={{ color:C.azul }}>· {filtros.operario}</span>}
+            {filtros.mes_num>0 && <span style={{ color:C.azul }}>· Mes {filtros.mes_num}</span>}
+            {filtros.ano>0     && <span style={{ color:C.azul }}>· {filtros.ano}</span>}
+            {filtros.fecha     && <span style={{ color:C.azul }}>· {filtros.fecha}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Sin datos */}
+      {!data && !cargando && (
+        <div style={{ background:C.card, borderRadius:'12px', padding:'60px',
+          textAlign:'center', border:`1px solid ${C.borde}` }}>
+          <div style={{ fontSize:'2.5rem', marginBottom:'12px' }}>🏭</div>
+          <div style={{ fontSize:'1.1rem', fontWeight:600, marginBottom:'8px' }}>
+            Sin datos de SBL
+          </div>
+          <div style={{ fontSize:'0.82rem', color:C.textoMut }}>
+            El script de AtpPut aún no ha enviado datos.
           </div>
         </div>
       )}
 
-      {/* ── SIN DATOS ────────────────────────────────────────────────── */}
-      {!data && !subiendo && (
-        <div className="card">
-          <div className="empty-state">
-            <div className="empty-state-icon">🏭</div>
-            <div className="empty-state-title">Sin datos de SBL</div>
-            <div className="empty-state-desc">
-              Carga el archivo Excel del sistema SBL para ver los KPIs de productividad por operario.
-            </div>
+      {data && !cargando && (
+        <>
+          {/* KPIs */}
+          <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px' }}>
+            <KpiCard label="Total unidades"  valor={fmtNum(kpis.total_unidades)}
+              sub="unidades confirmadas"  color={C.azul} />
+            <KpiCard label="Total líneas"    valor={fmtNum(kpis.total_lineas)}
+              sub="líneas procesadas"    color={C.verde} />
+            <KpiCard label="Total horas"     valor={`${fmtDec(kpis.total_horas)} h`}
+              sub="horas trabajadas"     color={C.amarillo} />
+            <KpiCard label="UXH promedio"    valor={fmtDec(kpis.avg_uph)}
+              sub={`Meta: ${META_UPH} u/hora`}
+              color={kpis.avg_uph>=META_UPH ? C.verde :
+                     kpis.avg_uph>=META_UPH*0.8 ? C.amarillo : C.rojo} />
+            <KpiCard label="LXH promedio"    valor={fmtDec(kpis.avg_lph)}
+              sub="líneas por hora"      color={C.morado} />
+            <KpiCard label="% Cumplimiento"  valor={`${fmtDec(kpis.pct_cumplimiento)}%`}
+              sub={`${fmtNum(kpis.cumpliendo)} de ${fmtNum(kpis.total_registros)}`}
+              color={kpis.pct_cumplimiento>=80 ? C.verde :
+                     kpis.pct_cumplimiento>=60 ? C.amarillo : C.rojo} />
           </div>
-        </div>
-      )}
 
-      {/* ── SPINNER ──────────────────────────────────────────────────── */}
-      {cargando && (
-        <div style={{ display:'flex', justifyContent:'center', padding:'30px' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'10px', color:'var(--text-muted)' }}>
-            <div className="spinner" /><span>Calculando métricas...</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── DASHBOARD ────────────────────────────────────────────────── */}
-      {data && !cargando && (() => {
-        const hayBajaMeta = (m.bajo_meta || []).length > 0
-        return (
-          <>
-            {/* Alerta operarios bajo meta */}
-            {hayBajaMeta && (
-              <div style={{ padding:'14px 18px', background:'#FFF5F5',
-                borderRadius:'var(--radius-lg)', border:'1px solid #FED7D7',
-                display:'flex', alignItems:'flex-start', gap:'12px' }}>
-                <span style={{ fontSize:'1.3rem', flexShrink:0 }}>⚠️</span>
-                <div>
-                  <div style={{ fontWeight:700, color:'#DC2626', fontSize:'0.875rem', marginBottom:'8px' }}>
-                    {m.bajo_meta.length} operario{m.bajo_meta.length > 1 ? 's' : ''} por
-                    debajo de la meta de {fmtNum(k.meta_uph)} unidades/hora
-                  </div>
-                  <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                    {m.bajo_meta.map((o, i) => (
-                      <span key={i} style={{ padding:'4px 12px', background:'#FED7D7',
-                        borderRadius:'20px', fontSize:'0.78rem', color:'#DC2626', fontWeight:600 }}>
-                        {o.Operario} · {fmtDec(o.uph)} UPH · {fmtPct(o.pct_meta)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* KPIs */}
-            <div style={{ display:'grid',
-              gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:'12px' }}>
-              <KpiCard
-                icono="📦"
-                label="Total unidades"
-                valor={fmtNum(k.total_unidades)}
-                sub="unidades confirmadas"
-                color="#2563EB"
-              />
-              <KpiCard
-                icono="📋"
-                label="Total líneas"
-                valor={fmtNum(k.total_lineas)}
-                sub="líneas procesadas"
-                color="#16A34A"
-              />
-              <KpiCard
-                icono="⚡"
-                label="UPH promedio"
-                valor={fmtDec(k.avg_uph)}
-                sub={`Meta: ${fmtNum(k.meta_uph)} unidades/hora`}
-                color={k.avg_uph >= k.meta_uph ? '#16A34A' :
-                       k.avg_uph >= k.meta_uph * 0.8 ? '#CA8A04' : '#DC2626'}
-              />
-              <KpiCard
-                icono="🎯"
-                label="% Cumplimiento"
-                valor={fmtPct(k.pct_cumplimiento)}
-                sub={`${fmtNum(k.cumpliendo)} de ${fmtNum(k.total_registros)} registros`}
-                color={k.pct_cumplimiento >= 80 ? '#16A34A' :
-                       k.pct_cumplimiento >= 60 ? '#CA8A04' : '#DC2626'}
-              />
-              <KpiCard
-                icono="👥"
-                label="Operarios activos"
-                valor={fmtNum(k.operarios_unicos)}
-                sub="personas en el período"
-                color="#7C3AED"
-              />
-            </div>
-
-            {/* Panel 1 y 2 — UPH y LPH por operario */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
-              <Panel
-                titulo="UPH por Operario"
-                badge={`Meta: ${fmtNum(k.meta_uph)} u/hora`}
-                subtitulo="Unidades por hora promedio · Verde = cumple · Rojo = bajo meta">
-                <GraficoMeta
-                  labels={operarios}
-                  valores={uphs}
-                  meta={k.meta_uph || 500}
-                  colorOk="#16A34A"
-                  colorFail="#DC2626"
-                  labelSerie="UPH"
-                />
-              </Panel>
-
-              <Panel
-                titulo="LPH por Operario"
-                badge="Líneas / hora"
-                subtitulo="Líneas por hora promedio del período">
-                <GraficoMeta
-                  labels={operarios}
-                  valores={lphs}
-                  meta={0}
-                  colorOk="#2563EB"
-                  colorFail="#2563EB"
-                  labelSerie="LPH"
-                />
-              </Panel>
-            </div>
-
-            {/* Panel 3 — Tendencia mensual */}
-            <Panel
-              titulo="Tendencia Mensual — UPH Promedio"
-              subtitulo="Evolución del promedio de unidades/hora mes a mes vs meta de 500">
-              <GraficoTendencia data={dataTendencia} />
+          {/* Fila 1 — Tendencia mensual + UPH por operario */}
+          <div style={{ display:'grid', gridTemplateColumns:'1.4fr 1fr',
+            gap:'16px', marginBottom:'16px' }}>
+            <Panel titulo="Tendencia Mensual — UPH"
+              sub="Evolución mes a mes vs meta de 500 u/hora">
+              {tendencia.length > 0
+                ? <ReactECharts option={opTendencia} style={{ height:'280px' }} />
+                : <div style={{ height:'240px', display:'flex', alignItems:'center',
+                    justifyContent:'center', color:C.textoMut }}>Sin datos</div>
+              }
             </Panel>
 
-            {/* Panel 4 — Detalle por operario */}
-            <Panel
-              titulo="Detalle por Operario"
-              badge={`${(m.detalle||[]).length} registros`}
-              subtitulo="Promedio UPH vs meta 500 · % máximo = 100%">
+            <Panel titulo="UXH por Operario"
+              sub="Verde ≥ 500 · Amarillo ≥ 400 · Rojo < 400">
+              {ranking.length > 0
+                ? <ReactECharts option={opUPH} style={{ height:'320px' }} />
+                : <div style={{ height:'240px', display:'flex', alignItems:'center',
+                    justifyContent:'center', color:C.textoMut }}>Sin datos</div>
+              }
+            </Panel>
+          </div>
+
+          {/* Fila 2 — Tendencia diaria + LPH */}
+          <div style={{ display:'grid', gridTemplateColumns:'1.5fr 1fr',
+            gap:'16px', marginBottom:'16px' }}>
+            <Panel titulo="Tendencia Diaria — UXH"
+              sub="UPH por día vs meta">
+              {tdDiaria.length > 0
+                ? <ReactECharts option={opDiaria} style={{ height:'280px' }} />
+                : <div style={{ height:'220px', display:'flex', alignItems:'center',
+                    justifyContent:'center', color:C.textoMut }}>Sin datos</div>
+              }
+            </Panel>
+
+            <Panel titulo="LXH por Operario"
+              sub="Líneas por hora">
+              {ranking.length > 0
+                ? <ReactECharts option={opLPH} style={{ height:'280px' }} />
+                : <div style={{ height:'220px', display:'flex', alignItems:'center',
+                    justifyContent:'center', color:C.textoMut }}>Sin datos</div>
+              }
+            </Panel>
+          </div>
+
+          {/* Fila 3 — Tabla + Desempeño */}
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr',
+            gap:'16px', marginBottom:'16px' }}>
+
+            {/* Tabla detalle */}
+            <div style={{ background:C.card, borderRadius:'12px',
+              border:`1px solid ${C.borde}`, overflow:'hidden',
+              boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
+              <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.borde}`,
+                display:'flex', justifyContent:'space-between' }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:'0.9rem' }}>Detalle por Operario</div>
+                  <div style={{ fontSize:'0.75rem', color:C.textoMut, marginTop:'2px' }}>
+                    Agregado del período
+                  </div>
+                </div>
+                <span style={{ fontSize:'0.75rem', color:C.textoMut }}>
+                  {ranking.length} operarios
+                </span>
+              </div>
               <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', fontSize:'0.82rem', borderCollapse:'collapse' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
                   <thead>
-                    <tr style={{ background:'var(--bg-surface2)' }}>
-                      {[
-                        { label:'Operario',      align:'left'   },
-                        { label:'Mes',           align:'left'   },
-                        { label:'Días',          align:'right'  },
-                        { label:'Unidades',      align:'right'  },
-                        { label:'Líneas',        align:'right'  },
-                        { label:'UPH prom',      align:'right'  },
-                        { label:'LPH prom',      align:'right'  },
-                        { label:'% Meta UPH',    align:'right'  },
-                        { label:'% Cumpliendo',  align:'right'  },
-                        { label:'Desempeño',     align:'center' },
-                      ].map(h => (
-                        <th key={h.label} style={{
-                          padding:'9px 12px', textAlign:h.align,
-                          fontWeight:600, color:'var(--text-secondary)',
-                          fontSize:'0.72rem', whiteSpace:'nowrap',
-                          borderBottom:'2px solid var(--border)',
-                        }}>
-                          {h.label}
+                    <tr style={{ background:C.fondo }}>
+                      {['Operario','Unidades','Líneas','UPH','LPH','Días','% Cumpl.'].map(h => (
+                        <th key={h} style={{ padding:'9px 12px',
+                          textAlign: h==='Operario' ? 'left' : 'right',
+                          fontWeight:600, color:C.textoMut, fontSize:'0.7rem',
+                          textTransform:'uppercase', letterSpacing:'0.5px',
+                          borderBottom:`1px solid ${C.borde}` }}>
+                          {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {(m.detalle || []).map((d, i) => {
-                      const colorM = d.pct_meta >= 100 ? '#16A34A' :
-                                     d.pct_meta >= 80  ? '#CA8A04' : '#DC2626'
-                      const colorC = d.pct_cumplimiento >= 80 ? '#16A34A' :
-                                     d.pct_cumplimiento >= 60 ? '#CA8A04' : '#DC2626'
+                    {ranking.map((r, i) => {
+                      const colorUPH = r.uph>=META_UPH ? C.verde :
+                                       r.uph>=META_UPH*0.8 ? C.amarillo : C.rojo
+                      const colorPct = r.pct_cumplimiento>=80 ? C.verde :
+                                       r.pct_cumplimiento>=60 ? C.amarillo : C.rojo
                       return (
-                        <tr key={i} style={{
-                          background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface2)'
+                        <tr key={r.operario} style={{
+                          borderBottom:`1px solid ${C.borde}`,
+                          background: i%2===0 ? C.card : C.fondo
                         }}>
-                          <td style={{ padding:'9px 12px', fontWeight:600,
-                            borderBottom:'1px solid var(--border)' }}>
-                            {d.Operario}
+                          <td style={{ padding:'9px 12px', fontWeight:600 }}>{r.operario}</td>
+                          <td style={{ padding:'9px 12px', textAlign:'right' }}>
+                            {fmtNum(r.unidades)}
                           </td>
-                          <td style={{ padding:'9px 12px',
-                            borderBottom:'1px solid var(--border)' }}>
-                            {MESES[d._mes]}
-                          </td>
-                          <td style={{ padding:'9px 12px', textAlign:'right',
-                            color:'var(--text-muted)',
-                            borderBottom:'1px solid var(--border)' }}>
-                            {d.dias}
+                          <td style={{ padding:'9px 12px', textAlign:'right' }}>
+                            {fmtNum(r.lineas)}
                           </td>
                           <td style={{ padding:'9px 12px', textAlign:'right',
-                            fontWeight:600, borderBottom:'1px solid var(--border)' }}>
-                            {fmtNum(d.unidades)}
+                            fontWeight:700, color:colorUPH }}>
+                            {fmtDec(r.uph)}
                           </td>
                           <td style={{ padding:'9px 12px', textAlign:'right',
-                            borderBottom:'1px solid var(--border)' }}>
-                            {fmtNum(d.lineas)}
+                            color:C.textoMut }}>
+                            {fmtDec(r.lph)}
                           </td>
                           <td style={{ padding:'9px 12px', textAlign:'right',
-                            fontWeight:600, borderBottom:'1px solid var(--border)' }}>
-                            {fmtDec(d.uph)}
+                            color:C.textoMut }}>
+                            {r.registros}
                           </td>
-                          <td style={{ padding:'9px 12px', textAlign:'right',
-                            color:'var(--text-muted)',
-                            borderBottom:'1px solid var(--border)' }}>
-                            {fmtDec(d.lph)}
-                          </td>
-                          <td style={{ padding:'9px 12px', textAlign:'right',
-                            borderBottom:'1px solid var(--border)' }}>
+                          <td style={{ padding:'9px 12px', textAlign:'right' }}>
                             <span style={{ padding:'2px 8px', borderRadius:'12px',
-                              fontSize:'0.75rem', fontWeight:700,
-                              color:colorM, background:colorM + '18' }}>
-                              {fmtPct(d.pct_meta)}
-                            </span>
-                          </td>
-                          <td style={{ padding:'9px 12px', textAlign:'right',
-                            borderBottom:'1px solid var(--border)' }}>
-                            <span style={{ padding:'2px 8px', borderRadius:'12px',
-                              fontSize:'0.75rem', fontWeight:700,
-                              color:colorC, background:colorC + '18' }}>
-                              {fmtPct(d.pct_cumplimiento)}
-                            </span>
-                          </td>
-                          <td style={{ padding:'9px 12px', textAlign:'center',
-                            borderBottom:'1px solid var(--border)' }}>
-                            <span style={{
-                              padding:'3px 10px', borderRadius:'12px',
-                              fontSize:'0.75rem', fontWeight:600,
-                              background: d.cumple ? '#F0FFF4' : '#FFF5F5',
-                              color:      d.cumple ? '#16A34A' : '#DC2626',
-                            }}>
-                              {d.cumple ? '✅ Cumple' : '❌ No cumple'}
+                              fontSize:'0.72rem', fontWeight:700,
+                              color:colorPct, background:colorPct+'18' }}>
+                              {fmtDec(r.pct_cumplimiento)}%
                             </span>
                           </td>
                         </tr>
@@ -592,10 +484,56 @@ function SBL() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Panel desempeño */}
+            <Panel titulo="Desempeño" sub={`Meta: ${META_UPH} u/hora`}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr',
+                gap:'10px', margin:'10px 0 16px' }}>
+                <div style={{ background:'#F0FFF4', borderRadius:'10px', padding:'14px',
+                  textAlign:'center', border:'1px solid #9AE6B4' }}>
+                  <div style={{ fontSize:'1.8rem', fontWeight:700, color:C.verde }}>
+                    {ranking.filter(r=>r.cumple_meta).length}
+                  </div>
+                  <div style={{ fontSize:'0.72rem', color:C.verde, marginTop:'4px' }}>
+                    Cumpliendo
+                  </div>
+                </div>
+                <div style={{ background:'#FFF5F5', borderRadius:'10px', padding:'14px',
+                  textAlign:'center', border:'1px solid #FED7D7' }}>
+                  <div style={{ fontSize:'1.8rem', fontWeight:700, color:C.rojo }}>
+                    {ranking.filter(r=>!r.cumple_meta).length}
+                  </div>
+                  <div style={{ fontSize:'0.72rem', color:C.rojo, marginTop:'4px' }}>
+                    Incumpliendo
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {ranking.map(r => (
+                  <div key={r.operario} style={{ display:'flex', justifyContent:'space-between',
+                    alignItems:'center', padding:'7px 10px', borderRadius:'8px',
+                    background:C.fondo, border:`1px solid ${C.borde}` }}>
+                    <span style={{ fontSize:'0.78rem', color:C.texto, fontWeight:500 }}>
+                      {r.operario}
+                    </span>
+                    <span style={{ padding:'2px 10px', borderRadius:'12px',
+                      fontSize:'0.7rem', fontWeight:600,
+                      background: r.cumple_meta ? '#F0FFF4' : '#FFF5F5',
+                      color:      r.cumple_meta ? C.verde : C.rojo,
+                      border: `1px solid ${r.cumple_meta ? '#9AE6B4' : '#FED7D7'}` }}>
+                      {r.cumple_meta ? 'Cumpliendo' : 'Incumpliendo'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </Panel>
-          </>
-        )
-      })()}
+          </div>
+        </>
+      )}
+
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }

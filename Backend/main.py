@@ -11,6 +11,9 @@ from database import init_db
 from config import load_config, BASE_DIR
 from routers import carriers, upload, process, dashboard, historial, watch
 from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, devoluciones
+from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, picking2
+from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, picking2, sbl2
+
 
 # 1. SOCKET.IO 
 sio = socketio.AsyncServer(
@@ -78,7 +81,8 @@ app.include_router(facturacion.router, prefix="/api", tags=["Facturacion"])
 app.include_router(picking.router, prefix="/api", tags=["Picking"])
 app.include_router(sbl.router,          prefix="/api", tags=["SBL"])
 app.include_router(devoluciones.router, prefix="/api", tags=["Devoluciones"])
-
+app.include_router(picking2.router, prefix="/api", tags=["Picking2"])
+app.include_router(sbl2.router, prefix="/api", tags=["SBL2"])
 
 #  6. ENDPOINT RAÍZ 
 # Ya no sirve el HTML — React corre en su propio servidor
