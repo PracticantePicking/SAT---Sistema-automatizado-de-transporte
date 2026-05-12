@@ -568,10 +568,16 @@ def insertar_sbl2_registros(registros: list) -> dict:
 
     for r in registros:
         try:
-            # Clave única: fecha + operario
+            # Clave única: fecha + operario + tiempo_act
+            # Permite múltiples registros del mismo operario en el mismo día
+            # si tienen diferente hora de actividad
             existe = conn.execute(
-                "SELECT id FROM sbl2_registros WHERE fecha=? AND operario=?",
-                (str(r.get("fecha","")), str(r.get("operario","")).upper())
+                "SELECT id FROM sbl2_registros WHERE fecha=? AND operario=? AND tiempo_act=?",
+                (
+                    str(r.get("fecha",        "")),
+                    str(r.get("operario",     "")).strip().upper(),
+                    str(r.get("tiempo_act",   "")),
+                )
             ).fetchone()
 
             if existe:

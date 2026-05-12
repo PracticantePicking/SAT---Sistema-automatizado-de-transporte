@@ -7,6 +7,7 @@ BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 RESULT_FOLDER = os.path.join(BASE_DIR, "resultado")
 CONFIG_FILE   = os.path.join(BASE_DIR, "carriers_config.json")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 for _dir in (UPLOAD_FOLDER, RESULT_FOLDER):
     os.makedirs(_dir, exist_ok=True)

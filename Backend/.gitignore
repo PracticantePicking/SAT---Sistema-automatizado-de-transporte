@@ -3,3 +3,4 @@ __pycache__/
 historial.db
 resultado/
 uploads/
+.env

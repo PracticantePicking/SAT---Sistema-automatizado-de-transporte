@@ -7,7 +7,7 @@ const BASE_URL = 'http://localhost:5000'
 const fmtNum = v => Number(v || 0).toLocaleString('es-CO')
 const fmtDec = v => Number(v || 0).toFixed(1)
 
-const META_UPH = 500
+const META_UPH = 478
 
 const C = {
   fondo:    '#F8FAFC',
@@ -46,6 +46,7 @@ const THEME = {
   legend: { textStyle: { color: C.textoMut, fontSize: 11 } },
 }
 
+// ── KPI Card ──────────────────────────────────────────────────────────────
 function KpiCard({ label, valor, sub, color }) {
   return (
     <div style={{ background:C.card, borderRadius:'12px', padding:'18px 20px',
@@ -65,6 +66,7 @@ function KpiCard({ label, valor, sub, color }) {
   )
 }
 
+// ── Panel contenedor ──────────────────────────────────────────────────────
 function Panel({ titulo, sub, children }) {
   return (
     <div style={{ background:C.card, borderRadius:'12px', padding:'18px',
@@ -80,6 +82,249 @@ function Panel({ titulo, sub, children }) {
   )
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  PANEL DE IA
+// ══════════════════════════════════════════════════════════════════════════
+const CTX_LABEL = { dia:'Día específico', mes:'Análisis mensual', operario:'Por operario', general:'Período completo' }
+
+function SeccionIA({ icono, titulo, contenido, bg='#F8FAFC', borde='#E2E8F0', colorTitulo }) {
+  if (!contenido) return null
+  return (
+    <div style={{ background:bg, borderRadius:'10px', padding:'16px', border:`1px solid ${borde}` }}>
+      <div style={{ fontWeight:600, fontSize:'0.85rem', marginBottom:'10px',
+        display:'flex', alignItems:'center', gap:'6px', color: colorTitulo || C.texto }}>
+        <span>{icono}</span> {titulo}
+      </div>
+      <div style={{ fontSize:'0.82rem', color:C.texto, lineHeight:1.7,
+        whiteSpace:'pre-line', maxHeight:'220px', overflowY:'auto' }}>
+        {contenido}
+      </div>
+    </div>
+  )
+}
+
+function PanelIA({ filtros }) {
+  const [ia,       setIa]       = useState(null)
+  const [cargando, setCargando] = useState(false)
+  const [error,    setError]    = useState(null)
+
+  async function generarAnalisis() {
+    setCargando(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      if (filtros.operario)    params.append('operario', filtros.operario)
+      if (filtros.mes_num > 0) params.append('mes_num',  filtros.mes_num)
+      if (filtros.ano > 0)     params.append('ano',      filtros.ano)
+      if (filtros.fecha)       params.append('fecha',    filtros.fecha)
+      const res  = await fetch(`${BASE_URL}/api/sbl2/analisis-ia?${params}`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.detail)
+      setIa(json)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setCargando(false)
+    }
+  }
+
+  const pred     = ia?.prediccion  || {}
+  const analisis = ia?.analisis    || {}
+  const mjd      = ia?.mejores_dias || []
+  const prd      = ia?.peores_dias  || []
+
+  return (
+    <div style={{ background:C.card, borderRadius:'12px',
+      border:`1px solid ${C.borde}`, overflow:'hidden',
+      boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
+
+      {/* Header */}
+      <div style={{ padding:'16px 20px', borderBottom:`1px solid ${C.borde}`,
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        background:'linear-gradient(135deg, #EEF2FF, #F8FAFC)' }}>
+        <div>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+            <span style={{ fontWeight:700, fontSize:'1rem', color:C.texto }}>
+              Informe Ejecutivo IA
+            </span>
+            {ia && (
+              <>
+                <span style={{ padding:'2px 8px', borderRadius:'12px',
+                  fontSize:'0.7rem', fontWeight:600,
+                  background: ia.modo === 'groq' ? '#EEF2FF' : '#F0FFF4',
+                  color:      ia.modo === 'groq' ? '#4F46E5' : C.verde,
+                  border: `1px solid ${ia.modo === 'groq' ? '#C7D2FE' : '#9AE6B4'}` }}>
+                  {ia.modo === 'groq' ? '⚡ Groq AI' : '⚙ Local'}
+                </span>
+                <span style={{ padding:'2px 8px', borderRadius:'12px', fontSize:'0.7rem',
+                  fontWeight:600, background:'#FEF3C7', color:'#92400E',
+                  border:'1px solid #FDE68A' }}>
+                  {CTX_LABEL[ia.contexto] || ia.contexto}
+                </span>
+              </>
+            )}
+          </div>
+          <div style={{ fontSize:'0.75rem', color:C.textoMut, marginTop:'2px' }}>
+            Predicción Scikit-learn · Análisis adaptado al filtro activo
+          </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          {ia && <span style={{ fontSize:'0.72rem', color:C.textoMut }}>{ia.generado_en}</span>}
+          <button onClick={generarAnalisis} disabled={cargando}
+            style={{ background:C.azul, color:'#fff', border:'none',
+              borderRadius:'8px', padding:'8px 16px', fontSize:'0.82rem',
+              fontWeight:600, cursor: cargando ? 'not-allowed' : 'pointer',
+              opacity: cargando ? 0.7 : 1,
+              display:'flex', alignItems:'center', gap:'6px' }}>
+            {cargando
+              ? <><div style={{ width:'14px', height:'14px',
+                  border:'2px solid rgba(255,255,255,0.3)',
+                  borderTop:'2px solid #fff', borderRadius:'50%',
+                  animation:'spin 1s linear infinite' }} /> Analizando...</>
+              : <>{ia ? '🔄 Regenerar' : '🚀 Generar análisis'}</>}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ padding:'14px 20px', background:'#FFF5F5',
+          color:C.rojo, fontSize:'0.82rem', borderBottom:`1px solid ${C.borde}` }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {!ia && !cargando && !error && (
+        <div style={{ padding:'40px', textAlign:'center', color:C.textoMut }}>
+          <div style={{ fontSize:'2rem', marginBottom:'8px' }}>🤖</div>
+          <div style={{ fontWeight:600, marginBottom:'4px', color:C.texto }}>
+            Informe ejecutivo con IA
+          </div>
+          <div style={{ fontSize:'0.82rem' }}>
+            Aplica los filtros que necesites y haz clic en "Generar análisis".<br/>
+            El informe se adapta automáticamente al contexto: día, mes, operario o general.
+          </div>
+        </div>
+      )}
+
+      {ia && !cargando && (
+        <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px' }}>
+
+          {/* KPIs predicción */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:'12px' }}>
+            <div style={{ background:'#EEF2FF', borderRadius:'10px', padding:'14px',
+              border:'1px solid #C7D2FE', textAlign:'center' }}>
+              <div style={{ fontSize:'0.7rem', fontWeight:600, color:'#4F46E5',
+                textTransform:'uppercase', marginBottom:'6px' }}>UPH Proyectado</div>
+              <div style={{ fontSize:'1.6rem', fontWeight:700, color:'#4F46E5' }}>
+                {pred.uph_predicho}
+              </div>
+              <div style={{ fontSize:'0.72rem', color:'#6366F1', marginTop:'4px' }}>próximo período</div>
+            </div>
+
+            <div style={{
+              background: pred.tendencia?.includes('↑') ? '#F0FFF4' :
+                          pred.tendencia?.includes('↓') ? '#FFF5F5' : '#FFFFF0',
+              borderRadius:'10px', padding:'14px', textAlign:'center',
+              border:`1px solid ${pred.tendencia?.includes('↑') ? '#9AE6B4' :
+                      pred.tendencia?.includes('↓') ? '#FED7D7' : '#F6E05E'}` }}>
+              <div style={{ fontSize:'0.7rem', fontWeight:600, textTransform:'uppercase', marginBottom:'6px',
+                color: pred.tendencia?.includes('↑') ? C.verde :
+                       pred.tendencia?.includes('↓') ? C.rojo : C.amarillo }}>Tendencia</div>
+              <div style={{ fontSize:'1.2rem', fontWeight:700,
+                color: pred.tendencia?.includes('↑') ? C.verde :
+                       pred.tendencia?.includes('↓') ? C.rojo : C.amarillo }}>
+                {pred.tendencia}
+              </div>
+            </div>
+
+            <div style={{ background:'#F0FFF4', borderRadius:'10px', padding:'14px',
+              border:'1px solid #9AE6B4', textAlign:'center' }}>
+              <div style={{ fontSize:'0.7rem', fontWeight:600, color:C.verde,
+                textTransform:'uppercase', marginBottom:'6px' }}>Prob. Meta</div>
+              <div style={{ fontSize:'1.6rem', fontWeight:700,
+                color: pred.probabilidad_meta >= 80 ? C.verde :
+                       pred.probabilidad_meta >= 50 ? C.amarillo : C.rojo }}>
+                {pred.probabilidad_meta}%
+              </div>
+            </div>
+
+            <div style={{ background:'#FFF5F5', borderRadius:'10px', padding:'14px',
+              border:'1px solid #FED7D7', textAlign:'center' }}>
+              <div style={{ fontSize:'0.7rem', fontWeight:600, color:C.rojo,
+                textTransform:'uppercase', marginBottom:'6px' }}>Alertas Críticas</div>
+              <div style={{ fontSize:'1.6rem', fontWeight:700, color:C.rojo }}>
+                {ia.cuellos?.filter(c => c.impacto === 'alto').length || 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Mejores / Peores días */}
+          {(mjd.length > 0 || prd.length > 0) && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              <div style={{ background:'#F0FFF4', borderRadius:'10px', padding:'14px',
+                border:'1px solid #9AE6B4' }}>
+                <div style={{ fontWeight:600, fontSize:'0.8rem', color:C.verde, marginBottom:'8px' }}>
+                  🏆 Mejores días
+                </div>
+                {mjd.map((d,i) => (
+                  <div key={i} style={{ display:'flex', justifyContent:'space-between',
+                    fontSize:'0.78rem', padding:'4px 0', borderBottom:'1px solid #D1FAE5' }}>
+                    <span>{d.fecha}</span>
+                    <span style={{ fontWeight:700, color:C.verde }}>{d.uph} UPH</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background:'#FFF5F5', borderRadius:'10px', padding:'14px',
+                border:'1px solid #FED7D7' }}>
+                <div style={{ fontWeight:600, fontSize:'0.8rem', color:C.rojo, marginBottom:'8px' }}>
+                  📉 Días de menor desempeño
+                </div>
+                {prd.map((d,i) => (
+                  <div key={i} style={{ display:'flex', justifyContent:'space-between',
+                    fontSize:'0.78rem', padding:'4px 0', borderBottom:'1px solid #FEE2E2' }}>
+                    <span>{d.fecha}</span>
+                    <span style={{ fontWeight:700, color:C.rojo }}>{d.uph} UPH</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Secciones IA — fila 1 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+            <SeccionIA icono="📋" titulo="Resumen Ejecutivo"
+              contenido={analisis.resumen_ejecutivo} />
+            <SeccionIA icono="📊" titulo="Análisis UPH / LPH"
+              contenido={analisis.analisis_uph_lph} />
+          </div>
+
+          {/* Secciones IA — fila 2 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+            <SeccionIA icono="🏅" titulo="Top Operarios"
+              contenido={analisis.top_operarios} />
+            <SeccionIA icono="📅" titulo="Días Destacados"
+              contenido={analisis.dias_destacados} />
+          </div>
+
+          {/* Secciones IA — fila 3 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+            <SeccionIA icono="⚠️" titulo="Cuellos de Botella"
+              contenido={analisis.cuellos_texto}
+              bg='#FFF5F5' borde='#FED7D7' colorTitulo={C.rojo} />
+            <SeccionIA icono="✅" titulo="Plan de Acción"
+              contenido={analisis.plan_de_accion}
+              bg='#F0FFF4' borde='#9AE6B4' colorTitulo={C.verde} />
+          </div>
+
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PÁGINA: SBL
+// ══════════════════════════════════════════════════════════════════════════
 function SBL() {
   const toast = useToast()
   const [data,     setData]     = useState(null)
@@ -121,13 +366,12 @@ function SBL() {
     cargarDashboard(v)
   }
 
-  const kpis     = data?.kpis           || {}
-  const vf       = data?.valores_filtro || {}
-  const tendencia = data?.tendencia     || []
-  const ranking   = data?.ranking       || []
-  const tdDiaria  = data?.tendencia_diaria || []
+  const kpis      = data?.kpis              || {}
+  const vf        = data?.valores_filtro    || {}
+  const tendencia = data?.tendencia         || []
+  const ranking   = data?.ranking           || []
+  const tdDiaria  = data?.tendencia_diaria  || []
 
-  // ── Gráfico tendencia mensual UPH ─────────────────────────────────────
   const opTendencia = {
     ...THEME,
     tooltip: { ...THEME.tooltip, trigger:'axis',
@@ -169,35 +413,22 @@ function SBL() {
     legend: { ...THEME.legend, data:['UPH','Meta'], top:0 },
     xAxis: { ...THEME.xAxis, type:'category',
       data: ranking.map(r => r.operario),
-      axisLabel: { color:C.textoMut, fontSize:10, rotate:40,
-        interval:0, margin:8 } },
+      axisLabel: { color:C.textoMut, fontSize:10, rotate:40, interval:0, margin:8 } },
     yAxis: { ...THEME.yAxis, type:'value',
       axisLabel: { color:C.textoMut, fontSize:11 } },
     series: [
-      {
-        name:'UPH', type:'bar', data:ranking.map(r=>r.uph),
-        barMaxWidth:40,
-        itemStyle: {
-          color: p => {
-            const v = ranking[p.dataIndex]?.uph||0
-            return v>=META_UPH ? C.verde : v>=META_UPH*0.8 ? C.amarillo : C.rojo
-          },
-          borderRadius:[4,4,0,0]
-        },
-        label:{ show:true, position:'top', fontSize:10, color:C.texto,
-          formatter: p => fmtDec(p.value) }
-      },
-      {
-        name:'Meta', type:'line', data:ranking.map(()=>META_UPH),
+      { name:'UPH', type:'bar', data:ranking.map(r=>r.uph), barMaxWidth:40,
+        itemStyle: { color: p => {
+          const v = ranking[p.dataIndex]?.uph||0
+          return v>=META_UPH ? C.verde : v>=META_UPH*0.8 ? C.amarillo : C.rojo
+        }, borderRadius:[4,4,0,0] }, label:{ show:false } },
+      { name:'Meta', type:'line', data:ranking.map(()=>META_UPH),
         lineStyle:{ color:C.rojo, width:2, type:'dashed' },
-        itemStyle:{ color:C.rojo }, symbol:'none'
-      }
+        itemStyle:{ color:C.rojo }, symbol:'none' }
     ]
   }
 
-  // ── Gráfico LPH por operario (barras) ────────────────────────────────
-  // ── Gráfico LPH por operario ─────────────────────────────────────────
-const opLPH = {
+  const opLPH = {
     ...THEME,
     grid: { left:'3%', right:'5%', bottom:'25%', top:'10%', containLabel:true },
     tooltip: { ...THEME.tooltip, trigger:'axis', axisPointer:{ type:'shadow' } },
@@ -207,33 +438,33 @@ const opLPH = {
     yAxis: { ...THEME.yAxis, type:'value',
       axisLabel: { color:C.textoMut, fontSize:11 } },
     series: [{
-      name:'LPH', type:'bar', data:ranking.map(r=>r.lph),
-      barMaxWidth:40,
-      itemStyle:{ color:C.morado, borderRadius:[4,4,0,0] },
-      label:{ show:true, position:'top', fontSize:10, color:C.texto,
-        formatter: p => fmtDec(p.value) }
+      name:'LPH', type:'bar', data:ranking.map(r=>r.lph), barMaxWidth:40,
+      itemStyle:{ color:C.morado, borderRadius:[4,4,0,0] }, label:{ show:false }
     }]
   }
 
-  // ── Gráfico tendencia diaria ─────────────────────────────────────────
-  // ── Gráfico tendencia diaria ─────────────────────────────────────────
   const opDiaria = {
     ...THEME,
-    grid: { left:'3%', right:'3%', bottom:'20%', top:'10%', containLabel:true },
+    grid: { left:'3%', right:'3%', bottom:'15%', top:'10%', containLabel:true },
+    dataZoom: [
+      { type:'slider', start:70, end:100, height:20, bottom:0,
+        borderColor:C.borde, fillerColor:C.azul+'30',
+        handleStyle:{ color:C.azul }, textStyle:{ color:C.textoMut, fontSize:10 } },
+      { type:'inside', start:70, end:100 }
+    ],
     tooltip: { ...THEME.tooltip, trigger:'axis',
-      formatter: p => `<div style="padding:6px 10px;font-size:13px">
+      formatter: p => `<div style="padding:6px 10px">
         <b>${p[0]?.axisValue}</b><br/>
         UPH: <b style="color:${C.cyan}">${p[0]?.value}</b>
       </div>` },
-    legend: { ...THEME.legend, data:['UPH diario','Meta'], top:0 },
+    legend: { ...THEME.legend, data:['UPH diario','Meta'] },
     xAxis: { ...THEME.xAxis, type:'category',
       data: tdDiaria.map(d=>d.fecha?.slice(5)||d.fecha),
       axisLabel: { color:C.textoMut, fontSize:10, rotate:45, interval:2 } },
     yAxis: { ...THEME.yAxis, type:'value',
       axisLabel: { color:C.textoMut, fontSize:11 } },
     series: [
-      { name:'UPH diario', type:'bar', data:tdDiaria.map(d=>d.uph),
-        barMaxWidth:16,
+      { name:'UPH diario', type:'bar', data:tdDiaria.map(d=>d.uph), barMaxWidth:16,
         itemStyle:{ color: p => {
           const v = tdDiaria[p.dataIndex]?.uph||0
           return v>=META_UPH ? C.verde+'CC' : C.rojo+'99'
@@ -291,11 +522,10 @@ const opLPH = {
             {(vf.anos||[]).map(a => <option key={a} value={a}>{a}</option>)}
           </select>
 
-          <select value={filtros.fecha} style={selectStyle}
-            onChange={e => handleFiltro('fecha', e.target.value)}>
-            <option value="">Todos los días</option>
-            {(vf.fechas||[]).map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
+          <input type="date" value={filtros.fecha}
+            max={new Date().toISOString().split('T')[0]}
+            style={{ ...selectStyle, width:'150px' }}
+            onChange={e => handleFiltro('fecha', e.target.value)} />
 
           <button onClick={limpiarFiltros} style={{ ...selectStyle,
             background:'transparent', color:C.textoMut }}>
@@ -345,37 +575,36 @@ const opLPH = {
           {/* KPIs */}
           <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px' }}>
             <KpiCard label="Total unidades"  valor={fmtNum(kpis.total_unidades)}
-              sub="unidades confirmadas"  color={C.azul} />
+              sub="unidades confirmadas" color={C.azul} />
             <KpiCard label="Total líneas"    valor={fmtNum(kpis.total_lineas)}
-              sub="líneas procesadas"    color={C.verde} />
+              sub="líneas procesadas"   color={C.verde} />
             <KpiCard label="Total horas"     valor={`${fmtDec(kpis.total_horas)} h`}
-              sub="horas trabajadas"     color={C.amarillo} />
+              sub="horas trabajadas"    color={C.amarillo} />
             <KpiCard label="UXH promedio"    valor={fmtDec(kpis.avg_uph)}
               sub={`Meta: ${META_UPH} u/hora`}
               color={kpis.avg_uph>=META_UPH ? C.verde :
                      kpis.avg_uph>=META_UPH*0.8 ? C.amarillo : C.rojo} />
             <KpiCard label="LXH promedio"    valor={fmtDec(kpis.avg_lph)}
-              sub="líneas por hora"      color={C.morado} />
+              sub="líneas por hora"     color={C.morado} />
             <KpiCard label="% Cumplimiento"  valor={`${fmtDec(kpis.pct_cumplimiento)}%`}
               sub={`${fmtNum(kpis.cumpliendo)} de ${fmtNum(kpis.total_registros)}`}
               color={kpis.pct_cumplimiento>=80 ? C.verde :
                      kpis.pct_cumplimiento>=60 ? C.amarillo : C.rojo} />
           </div>
 
-          {/* Fila 1 — Tendencia mensual + UPH por operario */}
+          {/* Fila 1 */}
           <div style={{ display:'grid', gridTemplateColumns:'1.4fr 1fr',
             gap:'16px', marginBottom:'16px' }}>
-            <Panel titulo="Tendencia Mensual — UPH"
-              sub="Evolución mes a mes vs meta de 500 u/hora">
+            <Panel titulo="Tendencia Mensual — UXH"
+              sub="Evolución mes a mes vs meta de 478 u/hora">
               {tendencia.length > 0
                 ? <ReactECharts option={opTendencia} style={{ height:'280px' }} />
                 : <div style={{ height:'240px', display:'flex', alignItems:'center',
                     justifyContent:'center', color:C.textoMut }}>Sin datos</div>
               }
             </Panel>
-
             <Panel titulo="UXH por Operario"
-              sub="Verde ≥ 500 · Amarillo ≥ 400 · Rojo < 400">
+              sub="Verde ≥ 478 · Amarillo ≥ 400 · Rojo < 378">
               {ranking.length > 0
                 ? <ReactECharts option={opUPH} style={{ height:'320px' }} />
                 : <div style={{ height:'240px', display:'flex', alignItems:'center',
@@ -384,20 +613,17 @@ const opLPH = {
             </Panel>
           </div>
 
-          {/* Fila 2 — Tendencia diaria + LPH */}
+          {/* Fila 2 */}
           <div style={{ display:'grid', gridTemplateColumns:'1.5fr 1fr',
             gap:'16px', marginBottom:'16px' }}>
-            <Panel titulo="Tendencia Diaria — UXH"
-              sub="UPH por día vs meta">
+            <Panel titulo="Tendencia Diaria — UXH" sub="UPH por día vs meta">
               {tdDiaria.length > 0
                 ? <ReactECharts option={opDiaria} style={{ height:'280px' }} />
                 : <div style={{ height:'220px', display:'flex', alignItems:'center',
                     justifyContent:'center', color:C.textoMut }}>Sin datos</div>
               }
             </Panel>
-
-            <Panel titulo="LXH por Operario"
-              sub="Líneas por hora">
+            <Panel titulo="LXH por Operario" sub="Líneas por hora">
               {ranking.length > 0
                 ? <ReactECharts option={opLPH} style={{ height:'280px' }} />
                 : <div style={{ height:'220px', display:'flex', alignItems:'center',
@@ -409,8 +635,6 @@ const opLPH = {
           {/* Fila 3 — Tabla + Desempeño */}
           <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr',
             gap:'16px', marginBottom:'16px' }}>
-
-            {/* Tabla detalle */}
             <div style={{ background:C.card, borderRadius:'12px',
               border:`1px solid ${C.borde}`, overflow:'hidden',
               boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
@@ -450,27 +674,18 @@ const opLPH = {
                       return (
                         <tr key={r.operario} style={{
                           borderBottom:`1px solid ${C.borde}`,
-                          background: i%2===0 ? C.card : C.fondo
-                        }}>
+                          background: i%2===0 ? C.card : C.fondo }}>
                           <td style={{ padding:'9px 12px', fontWeight:600 }}>{r.operario}</td>
                           <td style={{ padding:'9px 12px', textAlign:'right' }}>
-                            {fmtNum(r.unidades)}
-                          </td>
+                            {fmtNum(r.unidades)}</td>
                           <td style={{ padding:'9px 12px', textAlign:'right' }}>
-                            {fmtNum(r.lineas)}
-                          </td>
+                            {fmtNum(r.lineas)}</td>
                           <td style={{ padding:'9px 12px', textAlign:'right',
-                            fontWeight:700, color:colorUPH }}>
-                            {fmtDec(r.uph)}
-                          </td>
+                            fontWeight:700, color:colorUPH }}>{fmtDec(r.uph)}</td>
                           <td style={{ padding:'9px 12px', textAlign:'right',
-                            color:C.textoMut }}>
-                            {fmtDec(r.lph)}
-                          </td>
+                            color:C.textoMut }}>{fmtDec(r.lph)}</td>
                           <td style={{ padding:'9px 12px', textAlign:'right',
-                            color:C.textoMut }}>
-                            {r.registros}
-                          </td>
+                            color:C.textoMut }}>{r.registros}</td>
                           <td style={{ padding:'9px 12px', textAlign:'right' }}>
                             <span style={{ padding:'2px 8px', borderRadius:'12px',
                               fontSize:'0.72rem', fontWeight:700,
@@ -486,7 +701,6 @@ const opLPH = {
               </div>
             </div>
 
-            {/* Panel desempeño */}
             <Panel titulo="Desempeño" sub={`Meta: ${META_UPH} u/hora`}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr',
                 gap:'10px', margin:'10px 0 16px' }}>
@@ -509,7 +723,6 @@ const opLPH = {
                   </div>
                 </div>
               </div>
-
               <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                 {ranking.map(r => (
                   <div key={r.operario} style={{ display:'flex', justifyContent:'space-between',
@@ -530,6 +743,10 @@ const opLPH = {
               </div>
             </Panel>
           </div>
+
+          {/* Panel IA */}
+          <PanelIA filtros={filtros} />
+
         </>
       )}
 

@@ -10,7 +10,7 @@ from database import (
 )
 
 router = APIRouter()
-META_UPH = 500
+META_UPH = 478
 
 
 class SBLRegistro(BaseModel):

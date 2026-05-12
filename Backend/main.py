@@ -1,38 +1,32 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
-
+from dotenv import load_dotenv
 import socketio
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import carriers, upload, process, dashboard, historial, facturacion
+
 from database import init_db
 from config import load_config, BASE_DIR
-from routers import carriers, upload, process, dashboard, historial, watch
-from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, devoluciones
-from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, picking2
-from routers import carriers, upload, process, dashboard, historial, facturacion, picking, sbl, picking2, sbl2
+from routers import (
+    carriers, upload, process, dashboard,
+    historial, facturacion, picking, sbl,
+    picking2, sbl2, ia_sbl
+)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'), override=True)
 
 
-# 1. SOCKET.IO 
+# ── SOCKET.IO ─────────────────────────────────────────────────────────────
 sio = socketio.AsyncServer(
     cors_allowed_origins="*",
     async_mode="asgi"
 )
 
-
-#  2. LIFESPAN
-# Reemplaza @app.on_event("startup") — forma moderna en FastAPI
-# Se ejecuta al arrancar y al apagar el servidor
+# ── LIFESPAN ──────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app):
-    # STARTUP
     init_db()
-    wc = watch.watch_config
-    if wc.get("activo") and wc.get("carpeta"):
-        watch.iniciar_watch(wc["carpeta"], wc.get("espera", 3))
-        print(f"  ▶ Watch reactivado: {wc['carpeta']}")
     print("=" * 50)
     print("  SAT PREBEL — FastAPI + React")
     print("  API:      http://localhost:5000")
@@ -40,12 +34,8 @@ async def lifespan(app):
     print("  Frontend: http://localhost:5173")
     print("=" * 50)
     yield
-    # SHUTDOWN
-    watch.detener_watch()
 
-
-#  3. APP 
-# lifespan se pasa aquí — por eso debe estar definido antes
+# ── APP ───────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="SAT Prebel",
     version="2.0",
@@ -53,70 +43,50 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-
-#  4. MIDDLEWARE
-# allow_origins incluye el puerto de Vite (5173) para que
-# React pueda llamar al backend sin errores de CORS
+# ── MIDDLEWARE ────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # Vite — React dev server
-        "http://localhost:3000",  # por si acaso
-        "http://localhost:5000",  # el mismo backend
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:5000",
     ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-#  5. ROUTERS 
-# Cada router agrupa los endpoints de su módulo
-# prefix="/api" agrega el prefijo a todos automáticamente
-app.include_router(carriers.router,  prefix="/api", tags=["Carriers"])
-app.include_router(upload.router,    prefix="/api", tags=["Upload"])
-app.include_router(process.router,   prefix="/api", tags=["Process"])
-app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
-app.include_router(historial.router, prefix="/api", tags=["Historial"])
+# ── ROUTERS ───────────────────────────────────────────────────────────────
+app.include_router(carriers.router,    prefix="/api", tags=["Carriers"])
+app.include_router(upload.router,      prefix="/api", tags=["Upload"])
+app.include_router(process.router,     prefix="/api", tags=["Process"])
+app.include_router(dashboard.router,   prefix="/api", tags=["Dashboard"])
+app.include_router(historial.router,   prefix="/api", tags=["Historial"])
 app.include_router(facturacion.router, prefix="/api", tags=["Facturacion"])
-app.include_router(picking.router, prefix="/api", tags=["Picking"])
-app.include_router(sbl.router,          prefix="/api", tags=["SBL"])
-app.include_router(devoluciones.router, prefix="/api", tags=["Devoluciones"])
-app.include_router(picking2.router, prefix="/api", tags=["Picking2"])
-app.include_router(sbl2.router, prefix="/api", tags=["SBL2"])
+app.include_router(picking.router,     prefix="/api", tags=["Picking"])
+app.include_router(sbl.router,         prefix="/api", tags=["SBL"])
+app.include_router(picking2.router,    prefix="/api", tags=["Picking2"])
+app.include_router(sbl2.router,        prefix="/api", tags=["SBL2"])
+app.include_router(ia_sbl.router,      prefix="/api", tags=["IA"])
 
-#  6. ENDPOINT RAÍZ 
-# Ya no sirve el HTML — React corre en su propio servidor
-# Este endpoint confirma que la API está activa
+# ── ENDPOINT RAÍZ ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
     return {
         "status":  "online",
         "sistema": "SAT Prebel",
-        "fronted":     "http://localhost:5173",
+        "fronted": "http://localhost:5173",
         "version": "2.0"
     }
 
-
-#  7. SOCKET.IO EVENT
-# Cuando el frontend conecta por WebSocket emite "conectado"
+# ── SOCKET.IO ─────────────────────────────────────────────────────────────
 @sio.event
 async def connect(sid, environ):
     await sio.emit("conectado", {"msg": "Servidor listo"}, to=sid)
 
+# ── COMBINED APP ──────────────────────────────────────────────────────────
+combined_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# 8. COMBINED APP 
-# Socket.IO se monta como capa ASGI sobre FastAPI
-# Las rutas /socket.io/* las maneja sio
-# El resto las maneja app (FastAPI)
-combined_app = socketio.ASGIApp(
-    sio,
-    other_asgi_app=app
-)
-
-
-#  9. ARRANQUE 
-# Solo se ejecuta con: python main.py
-# Con uvicorn directo: uvicorn main:combined_app --reload
+# ── ARRANQUE ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run(
         "main:combined_app",
