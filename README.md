@@ -1,109 +1,122 @@
-# Hi, I'm John García 👋
+# SAT — Sistema de Automatización de Transportadoras
 
-**Backend Developer** based in Medellín, Colombia
+Plataforma interna para la gestión, seguimiento y análisis de operaciones logísticas con transportadoras. Incluye dashboards de OTD (On Time Delivery) por ciudad, filtros dinámicos y exportación de reportes multi-hoja a Excel.
 
-I build real systems — e-commerce platforms, logistics automation tools, and marketplace startups. I care about clean architecture, production-ready code, and solving actual business problems.
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-2.x-E92063?logo=pydantic&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.x-D71F00)
+![Tailwind](https://img.shields.io/badge/Tailwind-CSS-06B6D4?logo=tailwindcss&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-blue?logo=docker&logoColor=white)
 
 ---
 
-##  Tech Stack
+## Contexto
+
+Proyecto de automatización en el área de logística de una empresa del sector cosmético. Reemplaza procesos manuales basados en hojas de cálculo por una plataforma centralizada que estandariza la captura de datos, automatiza el cálculo de indicadores y expone reportes para la toma de decisiones operativas.
+
+## Stack Técnico
 
 **Backend**
-![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
-![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=flat&logo=sqlalchemy&logoColor=white)
+- Python 3.11+
+- FastAPI + Uvicorn
+- Pydantic v2 (validación y serialización)
+- SQLAlchemy 2.x (ORM)
+- SQLite (entorno actual) → SQL Server (migración planificada)
 
 **Frontend**
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=nextdotjs&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
+- Jinja2 templates server-side
+- Tailwind CSS
+- JavaScript vanilla para interactividad de filtros
 
-**DevOps & Tools**
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
-![Git](https://img.shields.io/badge/Git-F05032?style=flat&logo=git&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
-![DigitalOcean](https://img.shields.io/badge/DigitalOcean-0080FF?style=flat&logo=digitalocean&logoColor=white)
+**Procesamiento de datos**
+- Pandas
+- OpenPyXL (generación de Excel multi-hoja)
 
-**Data & Automation**
-![Power BI](https://img.shields.io/badge/Power_BI-F2C811?style=flat&logo=powerbi&logoColor=black)
-![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat&logo=pandas&logoColor=white)
-![n8n](https://img.shields.io/badge/n8n-EA4B71?style=flat&logo=n8n&logoColor=white)
-![SAP](https://img.shields.io/badge/SAP-0FAAFF?style=flat&logo=sap&logoColor=white)
+**Infraestructura**
+- Docker (contenerización)
+- Variables de entorno para configuración por ambiente
 
 ---
 
-##  Featured Projects
+## Características
 
-### [JD Sport — E-commerce Platform](https://github.com/johngarciaing85/jd-sport-backend)
-Full-stack e-commerce for a sportswear store in Medellín.
-- **Backend:** FastAPI + PostgreSQL + SQLAlchemy + JWT auth
-- **Frontend:** Next.js + TypeScript + Tailwind + Zustand
-- **Features:** Admin panel, guest checkout, per-size stock management, Wompi payment integration, Cloudinary media, DigitalOcean deployment
-- **Stack:** `Python` `FastAPI` `PostgreSQL` `Next.js` `TypeScript` `Docker`
-
-### [SenderoApp — Hiking Marketplace](https://sendero-app.vercel.app)
-Startup connecting hikers with verified local guides and agencies in Antioquia, Colombia.
-- Phase 0 validated with real guide contacts
-- 12% commission model per booking
-- **Stack:** `FastAPI` `PostgreSQL` `Next.js` `Vercel`
+- Dashboards de OTD agregados a nivel ciudad con visualización de tendencias.
+- Sistema de filtros dinámicos combinables (estado, fecha, ciudad, transportadora).
+- Exportación a Excel multi-hoja con datos crudos y resúmenes agregados.
+- Endpoint dedicado para descarga de archivos generados.
+- Validación automática de payloads con Pydantic.
+- Documentación interactiva auto-generada (Swagger UI + ReDoc).
 
 ---
 
-##  Pipelines & Automation
+## Arquitectura
 
-Production data pipelines and automation systems built at **Prebel S.A.** for logistics operations *(internal / proprietary — source code not public)*.
+Estructura modular con separación estricta por capas:
 
-### SAP Inventory Extraction & Dashboard
-End-to-end pipeline turning raw SAP data into an operations dashboard.
-- Python extractors for SAP transactions **ZWM53** and **MM60**
-- Data processor handling cleaning and date/numeric normalization, exposed through a **FastAPI** router
-- Interactive **ECharts** dashboard for the inventory module
-- **Stack:** `Python` `Pandas` `FastAPI` `SAP` `ECharts`
+```
+app/
+├── routers/         # Endpoints HTTP organizados por dominio
+├── services/        # Lógica de negocio
+├── repositories/    # Acceso a datos
+├── schemas/         # Modelos Pydantic (request/response)
+├── models/          # Modelos SQLAlchemy
+├── core/            # Configuración, seguridad, dependencias
+├── utils/           # Procesamiento Excel, helpers
+└── templates/       # Vistas Jinja2
+```
 
-### SAP LT23 Picking Productivity Pipeline
-Daily automation for warehouse picking KPIs that replaced a manual reporting process.
-- **VBScript** drives the SAP GUI extraction (LT23); **Python** transforms the data and writes to a shared Excel master
-- Feeds picking-productivity metrics consumed by operations
-- **Stack:** `Python` `VBScript` `Pandas` `Excel` `SAP`
-
-### ETL Web Scraping Pipeline
-End-to-end web data extraction for recurring operational reports.
-- **Selenium** scraping → **Pandas** transformation → **Openpyxl** load → **Power BI** consumption
-- Eliminated repetitive manual report building
-- **Stack:** `Python` `Selenium` `Pandas` `Power BI`
-
-### AI Executive Analysis Module
-LLM-powered summary layer over the SAT logistics system.
-- Integrated **Groq (Llama)** to auto-generate executive insights from operational data
-- **Stack:** `Python` `FastAPI` `Groq` `LLM`
+**Principios aplicados**
+- Inversión de dependencias entre routers y services.
+- Repositorios desacoplados del ORM mediante interfaces.
+- Configuración centralizada con Pydantic Settings.
+- Manejo de errores por excepciones de dominio mapeadas a respuestas HTTP.
 
 ---
 
-##  Work Experience
+## Hitos Técnicos
 
-**Prebel S.A.** *(Colombia's leading cosmetics company)* — IT Intern
-Built internal automation and web systems for logistics operations:
-- Migrated SAT (Carrier Automation System) from Flask → FastAPI with modular architecture
-- Developed Devoluciones_Web: 9-state workflow system with JWT + RBAC, handling 100K+ invoice records
-- Automated SAP LT23 extraction pipeline (VBScript + Python) for daily picking productivity reports
-- Built Power BI dashboards with DAX for operations KPIs
+### Migración Flask → FastAPI
+Refactor completo desde una base Flask monolítica hacia una arquitectura modular en FastAPI, manteniendo compatibilidad de endpoints durante la transición. Beneficios obtenidos: validación automática con Pydantic, documentación OpenAPI generada, soporte async nativo y mejor performance bajo carga concurrente.
 
----
+### Modularización por routers
+División del monolito original en routers por dominio funcional. Cada router agrupa sus dependencias, schemas y rutas, lo que facilita el mantenimiento y permite a múltiples desarrolladores trabajar sin colisiones.
 
-##  GitHub Stats
-
-![John's GitHub stats](https://github-readme-stats.vercel.app/api?username=johngarciaing85&show_icons=true&theme=default&hide_border=true&count_private=true)
-![Top Langs](https://github-readme-stats.vercel.app/api/top-langs/?username=johngarciaing85&layout=compact&hide_border=true&theme=default)
+### Pipeline de exportación a Excel
+Generación de reportes multi-hoja con OpenPyXL aplicando estilos, formato condicional y validaciones. Los archivos se generan en memoria y se sirven vía streaming para evitar saturar el disco.
 
 ---
 
-##  Contact
+## Decisiones Técnicas
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/john-garcia-cely)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=flat&logo=gmail&logoColor=white)](mailto:johngarciaing85@gmail.com)
+| Decisión | Alternativa considerada | Motivo |
+|----------|------------------------|--------|
+| FastAPI | Django REST Framework | Mejor performance async, validación nativa con Pydantic, OpenAPI automático. |
+| Jinja2 server-side | SPA (React/Next.js) | Menor complejidad para un alcance interno; despliegue más simple. |
+| SQLite inicial | SQL Server desde el día 1 | Permitió validar la lógica de negocio sin depender de permisos administrativos del entorno corporativo. |
+| Repositorios desacoplados | Acceso directo al ORM en services | Facilita testing y migración futura entre motores de base de datos. |
 
 ---
 
-*Open to Backend Developer and Data Engineer Junior roles — remote or Medellín.*
+## Roadmap
+
+- [ ] Migración a SQL Server (pendiente por permisos administrativos del entorno).
+- [ ] Integración con LLM para consultas en lenguaje natural sobre métricas logísticas.
+- [ ] Sistema de alertas automáticas por umbrales de OTD incumplidos.
+- [ ] Tests de integración con cobertura sobre routers críticos.
+- [ ] Pipeline CI/CD con validación automática de migraciones.
+
+---
+
+## Aprendizajes
+
+- Migrar un monolito en producción exige mantener compatibilidad hacia atrás durante la transición; los endpoints se versionaron y refactorizaron por dominio, no de golpe.
+- La separación en capas paga rápido: agregar un nuevo filtro o cambiar el motor de base de datos se hace sin tocar la lógica de negocio.
+- Pydantic v2 cambia las reglas de validación respecto a v1; vale la pena entender los `field_validator` y `model_validator` antes de migrar esquemas existentes.
+
+---
+
+## Autor
+
+**John Esteban García Cely**
+Backend Developer & Automation Engineer · Medellín, Colombia
