@@ -37,10 +37,3 @@ class ProcessJob(BaseModel):
 class ProcessRequest(BaseModel):
     jobs:    list[ProcessJob]
     rama_id: str = ""        
-
-#  WATCH
-class WatchRequest(BaseModel):
-    activo:  bool
-    carpeta: str = ""
-    espera:  int = 3
-    rama_id: str = "disnal"  # rama por defecto para el watch folder

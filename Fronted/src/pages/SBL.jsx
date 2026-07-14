@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { useToast } from '../components/Toast'
+import ErrorBoundary from '../components/ErrorBoundary'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const fmtNum = v => Number(v || 0).toLocaleString('es-CO')
 const fmtDec = v => Number(v || 0).toFixed(1)
@@ -82,9 +83,8 @@ function Panel({ titulo, sub, children }) {
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════
+
 //  PANEL DE IA
-// ══════════════════════════════════════════════════════════════════════════
 const CTX_LABEL = { dia:'Día específico', mes:'Análisis mensual', operario:'Por operario', general:'Período completo' }
 
 function SeccionIA({ icono, titulo, contenido, bg='#F8FAFC', borde='#E2E8F0', colorTitulo }) {
@@ -95,7 +95,7 @@ function SeccionIA({ icono, titulo, contenido, bg='#F8FAFC', borde='#E2E8F0', co
         display:'flex', alignItems:'center', gap:'6px', color: colorTitulo || C.texto }}>
         <span>{icono}</span> {titulo}
       </div>
-      <div style={{ fontSize:'0.82rem', color:C.texto, lineHeight:1.7,
+      <div className="notranslate" translate="no" style={{ fontSize:'0.82rem', color:C.texto, lineHeight:1.7,
         whiteSpace:'pre-line', maxHeight:'220px', overflowY:'auto' }}>
         {contenido}
       </div>
@@ -111,19 +111,26 @@ function PanelIA({ filtros }) {
   async function generarAnalisis() {
     setCargando(true)
     setError(null)
+    // Sin esto, un backend lento (Groq caído/lento) dejaba el botón en
+    // "Analizando..." indefinidamente sin avisar nada al usuario.
+    const controller = new AbortController()
+    const timeoutId   = setTimeout(() => controller.abort(), 45000)
     try {
       const params = new URLSearchParams()
       if (filtros.operario)    params.append('operario', filtros.operario)
       if (filtros.mes_num > 0) params.append('mes_num',  filtros.mes_num)
       if (filtros.ano > 0)     params.append('ano',      filtros.ano)
       if (filtros.fecha)       params.append('fecha',    filtros.fecha)
-      const res  = await fetch(`${BASE_URL}/api/sbl2/analisis-ia?${params}`)
+      const res  = await fetch(`${BASE_URL}/api/sbl2/analisis-ia?${params}`, { signal: controller.signal })
       const json = await res.json()
       if (!res.ok) throw new Error(json.detail)
       setIa(json)
     } catch (e) {
-      setError(e.message)
+      setError(e.name === 'AbortError'
+        ? 'El servidor tardó demasiado en responder (más de 45s). Intenta de nuevo.'
+        : e.message)
     } finally {
+      clearTimeout(timeoutId)
       setCargando(false)
     }
   }
@@ -190,6 +197,13 @@ function PanelIA({ filtros }) {
         <div style={{ padding:'14px 20px', background:'#FFF5F5',
           color:C.rojo, fontSize:'0.82rem', borderBottom:`1px solid ${C.borde}` }}>
           ❌ {error}
+        </div>
+      )}
+
+      {ia?.modo === 'local_fallback' && (
+        <div style={{ padding:'14px 20px', background:'#FFFBEB',
+          color:'#92400E', fontSize:'0.82rem', borderBottom:`1px solid ${C.borde}` }}>
+          ⚠ {ia.aviso}
         </div>
       )}
 
@@ -745,7 +759,9 @@ function SBL() {
           </div>
 
           {/* Panel IA */}
-          <PanelIA filtros={filtros} />
+          <ErrorBoundary>
+            <PanelIA filtros={filtros} />
+          </ErrorBoundary>
 
         </>
       )}

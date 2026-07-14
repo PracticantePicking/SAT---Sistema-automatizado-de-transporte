@@ -117,7 +117,7 @@ def get_dashboard(
             "cumple_meta":      uph >= META_UPH,
         })
     ranking.sort(key=lambda x: x["uph"], reverse=True)
-
+    
     # Tendencia diaria
     por_fecha = defaultdict(lambda: {"unidades":0,"lineas":0,"horas":0,"operarios":set()})
     for r in registros:

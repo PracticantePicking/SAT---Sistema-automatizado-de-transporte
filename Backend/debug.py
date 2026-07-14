@@ -1,1 +1,0 @@
-print(open('main.py').read()[:300])

@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 historial.db
+*.db
+*.sqlite3
 resultado/
 uploads/
+logs/
+*.log
 .env

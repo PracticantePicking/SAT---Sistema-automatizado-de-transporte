@@ -163,11 +163,6 @@ tbody td.hl{color:var(--text);font-weight:600}
 .hist-table tr:hover td{background:var(--surface2)}
 .hist-carriers{display:flex;gap:4px;flex-wrap:wrap}
 .hist-carrier-tag{font-size:13px;padding:2px 7px;border-radius:20px;background:var(--surface3);color:var(--text2);border:1px solid var(--border2);font-family:'JetBrains Mono',monospace}
-.watch-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
-.watch-status{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 16px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)}
-.watch-status.active{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.05)}
-.watch-log{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;height:220px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2)}
-.watch-log-line{margin-bottom:4px;animation:fadeIn .2s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .form-group{margin-bottom:14px}
 .form-label{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block;text-transform:uppercase;letter-spacing:.06em}
@@ -222,7 +217,6 @@ tbody td.hl{color:var(--text);font-weight:600}
   <div class="nav-item" onclick="navTo('dashboard',this)"><span class="nav-icon">📊</span><span>Indicadores</span></div>
   <div class="nav-item" onclick="navTo('historial',this)"><span class="nav-icon">🕓</span><span>Historial</span></div>
   <div class="nav-item" onclick="navTo('config',this)"><span class="nav-icon">⚙️</span><span>Configuración</span></div>
-  <div class="nav-item" onclick="navTo('watch',this)"><span class="nav-icon">👁</span><span>Watch Folder</span></div>
   <div class="nav-spacer"></div>
   <div class="server-pill"><div class="sdot" id="sdot"></div><span id="stext">Conectando...</span></div>
 </aside>
@@ -301,68 +295,6 @@ tbody td.hl{color:var(--text);font-weight:600}
   </div>
 </div>
 
-<!-- ═══ WATCH FOLDER ═══ -->
-<div class="page" id="page-watch">
-  <div class="section-title">Watch Folder</div>
-  <div class="section-sub">Deposita cualquier Excel en la carpeta — el sistema identifica la transportadora solo y genera el informe unificado.</div>
-
-  <div class="watch-card">
-    <div class="watch-status" id="watchStatus">
-      <div class="sdot" id="watchDot"></div>
-      <span id="watchStatusText">Inactivo</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr auto;gap:14px;margin-bottom:14px;align-items:end">
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Carpeta a vigilar</label>
-        <input class="form-input" id="watchFolder" placeholder="Ej: Z:\Descargas\Transportadoras">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Espera antes de procesar</label>
-        <select class="form-select" id="watchEspera" style="min-width:160px">
-          <option value="1">1 minuto</option>
-          <option value="3" selected>3 minutos</option>
-          <option value="5">5 minutos</option>
-          <option value="10">10 minutos</option>
-          <option value="15">15 minutos</option>
-        </select>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn-primary" onclick="toggleWatch(true)">▶ Activar</button>
-      <button class="btn-secondary" onclick="toggleWatch(false)">⏹ Detener</button>
-    </div>
-    <div style="margin-top:16px;padding:12px 14px;background:rgba(91,110,245,.06);border:1px solid rgba(91,110,245,.2);border-radius:8px;font-size:13px;color:var(--text2);line-height:1.7">
-      <strong style="color:var(--accent)">¿Cómo funciona?</strong><br>
-      1. Deposita uno o varios Excel (de cualquier transportadora) en la carpeta.<br>
-      2. El sistema identifica automáticamente a cuál transportadora pertenece cada archivo.<br>
-      3. Espera el tiempo configurado por si llegan más archivos.<br>
-      4. Procesa todos juntos y genera <strong style="color:var(--text)">un solo Excel unificado</strong>.
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-header">
-      <span class="card-title">Cola de archivos pendientes</span>
-      <div style="display:flex;gap:8px">
-        <button class="btn-primary btn-sm" id="btnProcesarAhora" onclick="watchProcesarAhora()" style="display:none">⚡ Procesar ahora</button>
-        <button class="btn-secondary btn-sm" onclick="watchVaciarCola()">🗑 Vaciar cola</button>
-      </div>
-    </div>
-    <div style="padding:14px" id="colaContent">
-      <div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">Sin archivos en cola</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">Log en tiempo real</span>
-      <button class="btn-secondary btn-sm" onclick="clearLog()">Limpiar</button>
-    </div>
-    <div style="padding:14px">
-      <div class="watch-log" id="watchLog"><div style="color:var(--text3)">Esperando actividad...</div></div>
-    </div>
-  </div>
-</div>
 
 </div><!-- page-body -->
 </div><!-- main-content -->
@@ -406,6 +338,10 @@ let carriers=[], finalCols=[], uploadedFiles={};
 let selColor=COLORS[0], selConfig=null;
 let resultFile=null, lastMetricas=null, pendingMapeo=null;
 
+function escapeHtml(v){
+  return String(v??"").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+}
+
 // ── SOCKET.IO ─────────────────────────────────────────
 const socket = io("http://localhost:5000");
 socket.on("conectado",          ()         => setServer(true));
@@ -414,18 +350,6 @@ socket.on("connect_error",      ()         => setServer(false));
 socket.on("progreso",           ({pct,msg})=> setProgress(pct,msg));
 socket.on("proceso_completado", data       => onProcesoCompletado(data));
 socket.on("proceso_error",      ({error})  => { hideProgress(); toast("error","❌ "+error); enableGenBtn(); });
-// Watch events
-socket.on("watch_log",            ({msg})                    => addLog(msg));
-socket.on("watch_cola_update",    ({cola})                   => renderCola(cola));
-socket.on("watch_detectado",      ({archivo,carrier,metodo,score}) => addLog(`📦 ${archivo} → <strong>${carrier}</strong> (${metodo}, ${score}%)`));
-socket.on("watch_no_identificado",({archivo})                => { addLog(`⚠️ No identificado: ${archivo}`); toast("warning",`⚠️ No se pudo identificar: ${archivo}`); });
-socket.on("watch_progreso",       ({pct,msg})                => addLog(`  ${pct}% — ${msg}`));
-socket.on("watch_completado",     ({archivo,total_filas,carriers:cs}) => {
-  addLog(`✅ Excel generado: ${archivo} (${total_filas} filas — ${(cs||[]).join(", ")})`);
-  loadHistorial();
-  toast("success",`✅ ${total_filas} filas procesadas → ${archivo}`);
-});
-socket.on("watch_error", ({error}) => { addLog(`❌ Error: ${error}`); toast("error","❌ "+error); });
 
 function setServer(ok){
   document.getElementById("sdot").className    = "sdot "+(ok?"on":"off");
@@ -433,10 +357,10 @@ function setServer(ok){
 }
 
 // ── INIT ──────────────────────────────────────────────
-async function init(){ renderColors(); await loadCarriers(); loadHistorial(); loadWatchStatus(); }
+async function init(){ renderColors(); await loadCarriers(); loadHistorial(); }
 
 // ── NAVEGACIÓN ────────────────────────────────────────
-const PAGE_TITLES = {procesar:"Procesar Archivos",dashboard:"Indicadores",historial:"Historial",config:"Configuración",watch:"Watch Folder"};
+const PAGE_TITLES = {procesar:"Procesar Archivos",dashboard:"Indicadores",historial:"Historial",config:"Configuración"};
 function navTo(page,el){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
@@ -447,7 +371,6 @@ function navTo(page,el){
   if(page==="dashboard") loadDashboard();
   if(page==="config")    renderCfgList();
   if(page==="historial") loadHistorial();
-  if(page==="watch")     loadWatchStatus();
 }
 
 // ── CARRIERS ──────────────────────────────────────────
@@ -477,7 +400,7 @@ function renderGrid(){
     const addBtn=files.length<5?`<button class="add-file-btn" onclick="addSlot('${c.id}')">+ Archivo</button>`:"";
     const delBtn=!c.isStatic?`<button class="del-carrier-btn" onclick="deleteCarrier('${c.id}')">✕</button>`:"";
     const card=document.createElement("div"); card.className="carrier-card";
-    card.innerHTML=`<div class="carrier-hdr"><div class="carrier-info"><div class="cdot" style="background:${c.color}"></div><span class="cname">${c.name}</span><span class="cbadge ${c.isStatic?"":"custom"}">${c.isStatic?"estática":"custom"}</span></div>${delBtn}</div><div class="drop-zones">${zonas}${addBtn}</div>`;
+    card.innerHTML=`<div class="carrier-hdr"><div class="carrier-info"><div class="cdot" style="background:${c.color}"></div><span class="cname">${escapeHtml(c.name)}</span><span class="cbadge ${c.isStatic?"":"custom"}">${c.isStatic?"estática":"custom"}</span></div>${delBtn}</div><div class="drop-zones">${zonas}${addBtn}</div>`;
     grid.appendChild(card);
   });
   updateFileStats();
@@ -614,10 +537,10 @@ function renderPreview(data){
   const trs=rows.map(row=>{
     const tds=cols.map(col=>{
       const v=row[col]??"";
-      if(col==="ON TIME"){if(v==="SI")return`<td><span class="badge b-si">SI</span></td>`;if(v==="NO")return`<td><span class="badge b-no">NO</span></td>`;if(v==="NO ENTREGADO")return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;return`<td>${v}</td>`;}
-      if(col==="Transportador"){const c=carriers.find(c=>c.name===v);const color=c?.color||"#8892b0";return`<td><span class="badge" style="background:${color}20;color:${color}">${v}</span></td>`;}
-      if(col==="Guia"||col==="Numero_Documento")return`<td class="hl">${v}</td>`;
-      return`<td>${v}</td>`;
+      if(col==="ON TIME"){if(v==="SI")return`<td><span class="badge b-si">SI</span></td>`;if(v==="NO")return`<td><span class="badge b-no">NO</span></td>`;if(v==="NO ENTREGADO")return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;return`<td>${escapeHtml(v)}</td>`;}
+      if(col==="Transportador"){const c=carriers.find(c=>c.name===v);const color=c?.color||"#8892b0";return`<td><span class="badge" style="background:${color}20;color:${color}">${escapeHtml(v)}</span></td>`;}
+      if(col==="Guia"||col==="Numero_Documento")return`<td class="hl">${escapeHtml(v)}</td>`;
+      return`<td>${escapeHtml(v)}</td>`;
     }).join("");
     return`<tr>${tds}</tr>`;
   }).join("");
@@ -937,14 +860,14 @@ function renderDashboardContent(data){
         if(v==="SI")  return`<td><span class="badge b-si">SI</span></td>`;
         if(v==="NO")  return`<td><span class="badge b-no">NO</span></td>`;
         if(v==="NO ENTREGADO") return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;
-        return`<td>${v}</td>`;
+        return`<td>${escapeHtml(v)}</td>`;
       }
       if(col==="Transportador"){
         const c=carriers.find(c=>c.name===v); const color=c?.color||"#8892b0";
-        return`<td><span class="badge" style="background:${color}20;color:${color}">${v}</span></td>`;
+        return`<td><span class="badge" style="background:${color}20;color:${color}">${escapeHtml(v)}</span></td>`;
       }
-      if(col==="Guia"||col==="Numero_Documento") return`<td class="pbi-td-hl">${v}</td>`;
-      return`<td>${v}</td>`;
+      if(col==="Guia"||col==="Numero_Documento") return`<td class="pbi-td-hl">${escapeHtml(v)}</td>`;
+      return`<td>${escapeHtml(v)}</td>`;
     }).join("");
     return`<tr>${tds}</tr>`;
   }).join("");
@@ -1177,7 +1100,7 @@ function renderDashboardContent(data){
                   return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
                     <span style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text2)">
                       <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
-                      ${t.name}
+                      ${escapeHtml(t.name)}
                     </span>
                     <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text)">${t.cantidad.toLocaleString()}</span>
                   </div>`;
@@ -1306,10 +1229,10 @@ function renderDashTable(preview,cols){
   const trs=preview.map(row=>{
     const tds=cols.map(col=>{
       const v=row[col]??"";
-      if(col==="ON TIME"){if(v==="SI")return`<td><span class="badge b-si">SI</span></td>`;if(v==="NO")return`<td><span class="badge b-no">NO</span></td>`;if(v==="NO ENTREGADO")return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;return`<td>${v}</td>`;}
-      if(col==="Transportador"){const c=carriers.find(c=>c.name===v);const color=c?.color||"#8892b0";return`<td><span class="badge" style="background:${color}20;color:${color}">${v}</span></td>`;}
-      if(col==="Guia"||col==="Numero_Documento")return`<td class="hl">${v}</td>`;
-      return`<td>${v}</td>`;
+      if(col==="ON TIME"){if(v==="SI")return`<td><span class="badge b-si">SI</span></td>`;if(v==="NO")return`<td><span class="badge b-no">NO</span></td>`;if(v==="NO ENTREGADO")return`<td><span class="badge b-ne">SIN ENTREGAR</span></td>`;return`<td>${escapeHtml(v)}</td>`;}
+      if(col==="Transportador"){const c=carriers.find(c=>c.name===v);const color=c?.color||"#8892b0";return`<td><span class="badge" style="background:${color}20;color:${color}">${escapeHtml(v)}</span></td>`;}
+      if(col==="Guia"||col==="Numero_Documento")return`<td class="hl">${escapeHtml(v)}</td>`;
+      return`<td>${escapeHtml(v)}</td>`;
     }).join("");
     return`<tr>${tds}</tr>`;
   }).join("");
@@ -1337,15 +1260,15 @@ async function eliminarHistorial(hid){
 
 // ── CONFIG ────────────────────────────────────────────
 function renderCfgList(){
-  document.getElementById("cfgList").innerHTML=carriers.map(c=>`<div class="cfg-item ${selConfig===c.id?"active":""}" onclick="selCfg('${c.id}')"><div class="cdot" style="background:${c.color}"></div><span class="cfg-item-name">${c.name}</span><span class="cfg-item-tag">${c.isStatic?"Estática":"Custom"}</span></div>`).join("");
+  document.getElementById("cfgList").innerHTML=carriers.map(c=>`<div class="cfg-item ${selConfig===c.id?"active":""}" onclick="selCfg('${c.id}')"><div class="cdot" style="background:${c.color}"></div><span class="cfg-item-name">${escapeHtml(c.name)}</span><span class="cfg-item-tag">${c.isStatic?"Estática":"Custom"}</span></div>`).join("");
 }
 function selCfg(id){
   selConfig=id; renderCfgList();
   const carrier=carriers.find(c=>c.id===id),panel=document.getElementById("cfgPanel");
   const cols=finalCols.filter(c=>!AUTO_COLS.has(c));
-  const rows=cols.map(col=>`<tr><td><span style="font-size:13px;font-family:'JetBrains Mono',monospace;padding:3px 8px;background:var(--surface2);border-radius:5px;white-space:nowrap">${col}</span></td><td style="text-align:center;color:var(--text3)">→</td><td><input class="mapping-input" data-col="${col}" value="${carrier.mapping?.[col]||""}" placeholder="Nombre en el Excel original"></td></tr>`).join("");
+  const rows=cols.map(col=>`<tr><td><span style="font-size:13px;font-family:'JetBrains Mono',monospace;padding:3px 8px;background:var(--surface2);border-radius:5px;white-space:nowrap">${escapeHtml(col)}</span></td><td style="text-align:center;color:var(--text3)">→</td><td><input class="mapping-input" data-col="${escapeHtml(col)}" value="${escapeHtml(carrier.mapping?.[col]||"")}" placeholder="Nombre en el Excel original"></td></tr>`).join("");
   const delBtn=!carrier.isStatic?`<button class="btn-danger" style="margin-left:8px" onclick="deleteCarrier('${id}')">🗑 Eliminar</button>`:"";
-  panel.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div class="cdot" style="background:${carrier.color};width:13px;height:13px"></div><span style="font-size:15px;font-weight:800">${carrier.name}</span><span class="cbadge ${carrier.isStatic?"":"custom"}">${carrier.isStatic?"estática":"custom"}</span></div><p style="font-size:14px;color:var(--text2);margin-bottom:16px;line-height:1.6">Escribe el nombre <strong style="color:var(--text)">exacto</strong> de cada columna en el Excel original de ${carrier.name}.<br>Tip: sube un archivo en Procesar — el sistema sugiere el mapeo automáticamente.</p><div style="overflow-x:auto"><table class="mapping-table"><thead><tr><th>Columna Final</th><th style="text-align:center">↓</th><th>Nombre en Excel original</th></tr></thead><tbody>${rows}</tbody></table></div><div style="margin-top:16px;display:flex;align-items:center"><button class="btn-primary btn-sm" onclick="saveCfg('${id}')">💾 Guardar</button>${delBtn}</div>`;
+  panel.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div class="cdot" style="background:${carrier.color};width:13px;height:13px"></div><span style="font-size:15px;font-weight:800">${escapeHtml(carrier.name)}</span><span class="cbadge ${carrier.isStatic?"":"custom"}">${carrier.isStatic?"estática":"custom"}</span></div><p style="font-size:14px;color:var(--text2);margin-bottom:16px;line-height:1.6">Escribe el nombre <strong style="color:var(--text)">exacto</strong> de cada columna en el Excel original de ${escapeHtml(carrier.name)}.<br>Tip: sube un archivo en Procesar — el sistema sugiere el mapeo automáticamente.</p><div style="overflow-x:auto"><table class="mapping-table"><thead><tr><th>Columna Final</th><th style="text-align:center">↓</th><th>Nombre en Excel original</th></tr></thead><tbody>${rows}</tbody></table></div><div style="margin-top:16px;display:flex;align-items:center"><button class="btn-primary btn-sm" onclick="saveCfg('${id}')">💾 Guardar</button>${delBtn}</div>`;
 }
 async function saveCfg(id){
   const mapping={};
@@ -1359,76 +1282,6 @@ async function saveCfg(id){
   }catch(e){toast("error","❌ "+e.message);}
 }
 
-// ── WATCH FOLDER ──────────────────────────────────────
-async function loadWatchStatus(){
-  try{
-    const r=await fetch(`${API}/watch`),d=await r.json();
-    updateWatchUI(d.activo,d.carpeta,d.espera);
-    if(d.cola&&d.cola.length) renderCola(d.cola);
-  }catch(e){}
-}
-function updateWatchUI(activo,carpeta,espera){
-  const dot=document.getElementById("watchDot"),txt=document.getElementById("watchStatusText"),ws=document.getElementById("watchStatus");
-  dot.className="sdot "+(activo?"on":"off");
-  txt.textContent=activo?`Activo — ${carpeta}`:"Inactivo";
-  ws.classList.toggle("active",activo);
-  if(carpeta) document.getElementById("watchFolder").value=carpeta;
-  if(espera)  document.getElementById("watchEspera").value=String(espera);
-}
-async function toggleWatch(activar){
-  const carpeta=document.getElementById("watchFolder").value.trim();
-  const espera=parseInt(document.getElementById("watchEspera").value);
-  if(activar&&!carpeta){toast("error","❌ Escribe la carpeta a vigilar");return;}
-  try{
-    const r=await fetch(`${API}/watch`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({activo:activar,carpeta,espera})});
-    const d=await r.json(); if(!r.ok) throw new Error(d.error);
-    updateWatchUI(activar,carpeta,espera);
-    addLog(activar?`▶ Watch activo en: ${carpeta} (espera: ${espera} min)`:"⏹ Watch detenido");
-    toast(activar?"success":"info",activar?"▶ Watch Folder activado":"⏹ Watch Folder detenido");
-  }catch(e){toast("error","❌ "+e.message);}
-}
-async function watchProcesarAhora(){
-  try{await fetch(`${API}/watch/procesar_ahora`,{method:"POST"});addLog("⚡ Procesamiento forzado iniciado");toast("info","⚡ Procesando ahora...");}
-  catch(e){toast("error","❌ "+e.message);}
-}
-async function watchVaciarCola(){
-  if(!confirm("¿Vaciar la cola sin procesar?")) return;
-  try{await fetch(`${API}/watch/vaciar_cola`,{method:"POST"});renderCola([]);addLog("🗑 Cola vaciada");toast("info","🗑 Cola vaciada");}
-  catch(e){toast("error","❌ "+e.message);}
-}
-function renderCola(cola){
-  const div=document.getElementById("colaContent"),btn=document.getElementById("btnProcesarAhora");
-  if(!cola||!cola.length){
-    div.innerHTML=`<div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">Sin archivos en cola</div>`;
-    if(btn) btn.style.display="none"; return;
-  }
-  if(btn) btn.style.display="flex";
-  div.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:14px">
-    <thead><tr>
-      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Archivo</th>
-      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Transportadora</th>
-      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Método</th>
-      <th style="text-align:left;padding:7px 12px;font-size:13px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace">Confianza</th>
-    </tr></thead>
-    <tbody>${cola.map(item=>{
-      const c=carriers.find(c=>c.name===item.carrier),color=c?.color||"#8892b0";
-      const scoreColor=item.score>=80?"var(--green)":item.score>=50?"var(--yellow)":"var(--red)";
-      return`<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:8px 12px;font-family:'JetBrains Mono',monospace;color:var(--text)">${item.archivo}</td>
-        <td style="padding:8px 12px"><span class="badge" style="background:${color}20;color:${color}">${item.carrier}</span></td>
-        <td style="padding:8px 12px;color:var(--text2);font-size:13px">${item.metodo==="nombre"?"📝 Nombre":"🔍 Columnas"}</td>
-        <td style="padding:8px 12px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${scoreColor}">${item.score}%</td>
-      </tr>`;
-    }).join("")}</tbody></table>`;
-}
-function addLog(msg){
-  const log=document.getElementById("watchLog"); if(!log) return;
-  const ts=new Date().toLocaleTimeString(),line=document.createElement("div");
-  line.className="watch-log-line";
-  line.innerHTML=`<span style="color:var(--text3)">[${ts}]</span> ${msg}`;
-  log.appendChild(line); log.scrollTop=log.scrollHeight;
-}
-function clearLog(){const log=document.getElementById("watchLog");if(log) log.innerHTML="";}
 
 // ── MODAL ─────────────────────────────────────────────
 function renderColors(){document.getElementById("colorOpts").innerHTML=COLORS.map(c=>`<div class="color-opt ${c===selColor?"sel":""}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join("");}

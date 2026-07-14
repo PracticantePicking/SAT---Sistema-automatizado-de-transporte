@@ -13,14 +13,14 @@ from config import UPLOAD_FOLDER
 
 router = APIRouter()
 
-# ── Storage en memoria del último archivo procesado ───────────────────────
+#  Storage en memoria del último archivo procesado 
 _estado = {
     "df":        None,
     "filename":  None,
     "procesado": None,
 }
 
-# ── HELPER: leer y normalizar el Excel de SAP ─────────────────────────────
+#  HELPER: leer y normalizar el Excel de SAP 
 def _leer_sap(filepath: str) -> pd.DataFrame:
     # Intentar detectar automáticamente dónde están los headers
     # Primero leer sin headers para encontrar la fila correcta
@@ -93,7 +93,7 @@ def _leer_sap(filepath: str) -> pd.DataFrame:
     return df
 
 
-# ── HELPER: calcular métricas ─────────────────────────────────────────────
+#  HELPER: calcular métricas 
 def _calcular_metricas(df: pd.DataFrame) -> dict:
 
     total_facturado  = float(df["Valor Neto"].sum())
@@ -101,7 +101,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
     total_facturas   = df["Factura"].nunique() if "Factura" in df.columns else 0
     ticket_promedio  = total_facturado / total_facturas if total_facturas > 0 else 0
 
-    # ── Por canal (CDis) ──────────────────────────────────────────────────
+    #  Por canal (CDis)
     por_canal = []
     if "CDis" in df.columns:
         canal_grp = df.groupby("CDis").agg(
@@ -111,7 +111,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
         ).reset_index().sort_values("valor", ascending=False)
         por_canal = canal_grp.to_dict(orient="records")
 
-    # ── Top 10 clientes ───────────────────────────────────────────────────
+    #  Top 10 clientes 
     top_clientes = []
     if "Solicitante" in df.columns:
         cli_grp = df.groupby("Solicitante").agg(
@@ -120,7 +120,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
         ).reset_index().sort_values("valor", ascending=False).head(10)
         top_clientes = cli_grp.to_dict(orient="records")
 
-    # ── Top 10 productos ──────────────────────────────────────────────────
+    #  Top 10 productos 
     top_productos = []
     col_prod = "Número de material" if "Número de material" in df.columns else None
     if col_prod:
@@ -130,7 +130,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
         ).reset_index().sort_values("valor", ascending=False).head(10)
         top_productos = prod_grp.to_dict(orient="records")
 
-    # ── Por categoría (Grupo artículos) ───────────────────────────────────
+    # ── Por categoría (Grupo artículos)
     por_categoria = []
     if "Grupo de artículos" in df.columns:
         cat_grp = df.groupby("Grupo de artículos").agg(
@@ -139,7 +139,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
         ).reset_index().sort_values("valor", ascending=False)
         por_categoria = cat_grp.to_dict(orient="records")
 
-    # ── Tendencia mensual ─────────────────────────────────────────────────
+    # ── Tendencia mensual 
     tendencia_mensual = []
     if "MesNombre" in df.columns:
         mes_grp = df.groupby(["Año", "Mes", "MesNombre"]).agg(
@@ -148,7 +148,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
         ).reset_index().sort_values(["Año", "Mes"])
         tendencia_mensual = mes_grp.to_dict(orient="records")
 
-    # ── Por marca ─────────────────────────────────────────────────────────
+    # ── Por marca 
     por_marca = []
     if "MARCA" in df.columns:
         marca_grp = df.groupby("MARCA").agg(
@@ -172,10 +172,7 @@ def _calcular_metricas(df: pd.DataFrame) -> dict:
         "por_marca":        por_marca,
     }
 
-
-# ══════════════════════════════════════════════════════════════════════════
 #  ENDPOINTS
-# ══════════════════════════════════════════════════════════════════════════
 
 @router.post("/facturacion/upload")
 async def upload_facturacion(file: UploadFile = File(...)):

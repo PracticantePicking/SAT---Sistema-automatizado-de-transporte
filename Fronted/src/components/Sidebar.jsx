@@ -16,7 +16,7 @@ const NAV_ITEMS = [
     path:  '/indicadores',
     icon:  '📊',
     label: 'Indicadores',
-    //desc:  'Dashboard y métricas',
+    //desc:  'Dashboard de control reclamo por filtros',
   },
   {
     id:    'historial',
@@ -35,11 +35,19 @@ const NAV_ITEMS = [
 ]
 const FINANCIAL_ITEMS = [
   {
-  id:    'facturacion',
-  path:  '/facturacion',
-  icon:  '📈',
-  label: 'Facturación',
+  id:    'Inventario',
+  path:  '/inventario',
+  icon:  '🗃️',
+  label: 'Inventario',
   },
+  {
+  id:    'Controles reclamos',
+  path:  '/control-reclamo',
+  icon:  '📢',
+  label: 'Controles reclamos',
+  desc:  'Dashboard de control reclamo por filtros',
+  },
+
 ];
 
 const PRODUCTION_ITEMS = [

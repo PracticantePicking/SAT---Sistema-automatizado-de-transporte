@@ -1,6 +1,6 @@
 """
 routers/ia_sbl.py
-Análisis de productividad SBL con IA — adaptado al filtro activo.
+Análisis de productividad SBL con IA
 """
 
 import os
@@ -11,6 +11,10 @@ from collections import defaultdict
 from fastapi import APIRouter, HTTPException
 from database import consultar_sbl2_registros, calcular_kpis_sbl2
 
+from logger import get_logger
+
+logger = get_logger("ia_sbl")
+
 _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
 load_dotenv(dotenv_path=_env_path, override=True)
 
@@ -18,9 +22,8 @@ router   = APIRouter()
 META_UPH = 478
 
 
-# ══════════════════════════════════════════════════════════════════════════
 #  SCIKIT-LEARN — Predicción UPH próximo período
-# ══════════════════════════════════════════════════════════════════════════
+
 def _predecir_uph(serie: list, campo="uph") -> dict:
     try:
         from sklearn.linear_model import LinearRegression
@@ -45,13 +48,12 @@ def _predecir_uph(serie: list, campo="uph") -> dict:
         return {"uph_predicho": 0, "tendencia": "error", "error": str(e)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
+
 #  CALCULAR DATOS COMPLETOS (todos los indicadores necesarios para la IA)
-# ══════════════════════════════════════════════════════════════════════════
 def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
     kpis = calcular_kpis_sbl2(registros)
 
-    # ── Tendencia mensual ────────────────────────────────────────────────
+    # ── Tendencia mensual 
     por_mes = defaultdict(lambda: {"unidades": 0, "lineas": 0, "horas": 0, "nombre": ""})
     for r in registros:
         k = f"{r.get('ano','')}-{str(r.get('mes_num',0)).zfill(2)}"
@@ -73,7 +75,7 @@ def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
             "lineas":   d["lineas"],
         })
 
-    # ── Tendencia diaria ─────────────────────────────────────────────────
+    # ── Tendencia diaria 
     por_dia = defaultdict(lambda: {"unidades": 0, "lineas": 0, "horas": 0, "ops": set()})
     for r in registros:
         f = str(r.get("fecha", ""))
@@ -99,7 +101,7 @@ def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
     mejores_dias = dias_sorted[:3]
     peores_dias  = [d for d in dias_sorted[-3:] if d["uph"] > 0][::-1]
 
-    # ── Ranking por operario ─────────────────────────────────────────────
+    # ── Ranking por operario 
     por_op = defaultdict(lambda: {"unidades": 0, "lineas": 0, "horas": 0,
                                    "registros": 0, "cumpliendo": 0})
     for r in registros:
@@ -108,7 +110,7 @@ def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
         por_op[op]["lineas"]    += r.get("lineas",   0) or 0
         por_op[op]["horas"]     += r.get("horas",    0) or 0
         por_op[op]["registros"] += 1
-        if str(r.get("desempeno", "")).strip().lower() == "cumpliendo":
+        if (r.get("u_hora_real") or 0) >= META_UPH:
             por_op[op]["cumpliendo"] += 1
 
     ranking = []
@@ -129,7 +131,7 @@ def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
         })
     ranking.sort(key=lambda x: x["uph"], reverse=True)
 
-    # ── Cuellos de botella ───────────────────────────────────────────────
+    # ── Cuellos de botella 
     cuellos = []
     for op in ranking:
         uph  = op["uph"]
@@ -151,11 +153,11 @@ def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
             cuellos.append({"tipo": "tendencia", "operario": "EQUIPO", "impacto": "alto",
                 "mensaje": f"UPH descendiendo 3 meses consecutivos ({ultimos[0]} → {ultimos[-1]})"})
 
-    # ── Predicción ───────────────────────────────────────────────────────
+    # ── Predicción 
     serie_pred = tendencia_diaria if filtros.get("fecha") else tendencia_mensual
     prediccion = _predecir_uph(serie_pred)
 
-    # ── Contexto del filtro ──────────────────────────────────────────────
+    # ── Contexto del filtro 
     if filtros.get("fecha"):
         contexto = "dia"
     elif filtros.get("mes_num", 0) > 0:
@@ -178,9 +180,9 @@ def _calcular_datos_completos(registros: list, filtros: dict) -> dict:
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════
-#  PROMPT — adaptado al tipo de filtro
-# ══════════════════════════════════════════════════════════════════════════
+
+#  PROMPT - Esto hace el analiss del Dasshboard
+
 def _construir_prompt(datos: dict, filtros: dict) -> str:
     kpis     = datos["kpis"]
     ranking  = datos["ranking"]
@@ -229,8 +231,8 @@ def _construir_prompt(datos: dict, filtros: dict) -> str:
     prd_txt = "\n".join([f"  {d['fecha']}: {d['uph']} UPH | {d['unidades']:,.0f} unidades" for d in prd])
     cuellos_txt = "\n".join([f"  [{c['tipo'].upper()}] {c['mensaje']}" for c in cuellos]) or "  Ninguno crítico detectado"
 
-    return f"""Eres un experto analista de productividad logística en Prebel S.A.S.
-Genera un informe ejecutivo completo del Sistema de Bandas Logísticas (SBL).
+    return f"""Eres un experto analista de productividad logística.
+Genera un informe ejecutivo completo del Sorter por Guiado de Luz (Put-to-Light) o (SBL).
 Contexto del análisis: {ctx}
 Meta de referencia: {META_UPH} UPH
 
@@ -288,9 +290,8 @@ Responde ÚNICAMENTE con estas secciones en este orden exacto, sin agregar texto
 """
 
 
-# ══════════════════════════════════════════════════════════════════════════
+
 #  EXTRACCIÓN DE SECCIONES
-# ══════════════════════════════════════════════════════════════════════════
 SECCIONES = [
     "RESUMEN_EJECUTIVO", "ANALISIS_UPH_LPH", "TOP_OPERARIOS",
     "DIAS_DESTACADOS", "CUELLOS_DE_BOTELLA", "PLAN_DE_ACCION",
@@ -320,10 +321,7 @@ def _extraer_seccion(texto: str, clave: str) -> str:
                 break
     return texto[inicio:fin].strip()
 
-
-# ══════════════════════════════════════════════════════════════════════════
 #  ANÁLISIS LOCAL (fallback sin API)
-# ══════════════════════════════════════════════════════════════════════════
 def _analisis_local(datos: dict) -> dict:
     kpis   = datos["kpis"]
     pred   = datos["prediccion"]
@@ -390,7 +388,12 @@ def _analisis_local(datos: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════
 def _get_groq_client():
     from groq import Groq
-    return Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+    # timeout=20s: si Groq no responde rápido, mejor fallar rápido y caer al
+    # análisis local que dejar al usuario esperando (el frontend antes no
+    # tenía timeout propio y se quedaba colgado en "Analizando...").
+    # max_retries=3: reintenta automáticamente rate-limit (429) y errores
+    # transitorios de red/servidor antes de darse por vencido.
+    return Groq(api_key=os.getenv("GROQ_API_KEY", ""), timeout=20.0, max_retries=3)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -409,7 +412,7 @@ def analisis_ia(operario: str = "", mes_num: int = 0, ano: int = 0, fecha: str =
     datos = _calcular_datos_completos(registros, filtros)
 
     api_key = os.getenv("GROQ_API_KEY", "")
-    print(f"DEBUG GROQ_API_KEY: '{api_key[:10] if api_key else 'VACIA'}'")
+    logger.debug("GROQ_API_KEY presente: %s", bool(api_key))
 
     if not api_key:
         analisis = _analisis_local(datos)
@@ -432,7 +435,7 @@ def analisis_ia(operario: str = "", mes_num: int = 0, ano: int = 0, fecha: str =
             messages=[{"role": "user", "content": prompt}]
         )
         texto = respuesta.choices[0].message.content
-        print(f"DEBUG Groq respuesta (200c): {texto[:200]}")
+        logger.debug("Groq respuesta (200c): %s", texto[:200])
 
         analisis = {
             "resumen_ejecutivo": _extraer_seccion(texto, "RESUMEN_EJECUTIVO"),
@@ -456,4 +459,19 @@ def analisis_ia(operario: str = "", mes_num: int = 0, ano: int = 0, fecha: str =
             "analisis": analisis, "texto_completo": texto,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error Groq: {e}")
+        # Groq falló (rate limit, timeout, sin internet, etc.) incluso tras
+        # los reintentos automáticos del cliente. En vez de devolver 500 y
+        # dejar al usuario sin informe, se cae al análisis local para que
+        # SIEMPRE se genere un reporte.
+        logger.warning("Groq falló, usando fallback local: %s", e)
+        analisis = _analisis_local(datos)
+        return {
+            "ok": True, "modo": "local_fallback",
+            "aviso": f"No se pudo contactar a Groq ({e}). Se generó un análisis local.",
+            "generado_en": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "contexto": datos["contexto"], "filtros": filtros,
+            "kpis": datos["kpis"], "prediccion": datos["prediccion"],
+            "cuellos": datos["cuellos"], "ranking": datos["ranking"],
+            "mejores_dias": datos["mejores_dias"], "peores_dias": datos["peores_dias"],
+            "analisis": analisis,
+        }

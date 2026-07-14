@@ -7,5 +7,4 @@ xlrd
 rapidfuzz
 pydantic
 scikit-learn
-google-generativeai
 groq

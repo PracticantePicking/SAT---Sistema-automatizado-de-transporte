@@ -4,9 +4,10 @@ Módulo de Inventario — Dashboard + Ingest + Ejecución script
 """
 
 import os
+import re
 import threading
 import subprocess
-from datetime import datetime
+from datetime import datetime, date
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -18,6 +19,12 @@ router = APIRouter()
 
 
 META = 99.0
+
+MESES_NOMBRE = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+}
 
 
 #  Estado del proceso de ejecución
@@ -334,3 +341,126 @@ def get_estado_inventario():
     ultima = conn.execute("SELECT MAX(fecha) FROM inventario_registros").fetchone()[0]
     conn.close()
     return {"total_registros": total, "ultima_fecha": ultima}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  VALIDACIÓN DE CALIDAD DE DATOS — registros ya cargados en la tabla
+# ══════════════════════════════════════════════════════════════════════════
+
+_FECHA_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _validar_registro(r: dict, año_actual: int) -> list:
+    problemas = []
+
+    if not (r.get("documento_inventario") or "").strip():
+        problemas.append("documento_inventario vacío")
+    if not (r.get("ubicacion") or "").strip():
+        problemas.append("ubicación vacía")
+    if not (r.get("material") or "").strip():
+        problemas.append("material vacío")
+    if not (r.get("fecha") or "").strip():
+        problemas.append("fecha vacía")
+
+    if (r.get("cantidad_teorica")   or 0) < 0: problemas.append("cantidad_teorica negativa")
+    if (r.get("cantidad_fisica")    or 0) < 0: problemas.append("cantidad_fisica negativa")
+    if (r.get("costo_cant_fisica")  or 0) < 0: problemas.append("costo_cant_fisica negativo")
+    if (r.get("costo_cant_teorica") or 0) < 0: problemas.append("costo_cant_teorica negativo")
+    if (r.get("valor_abs")          or 0) < 0: problemas.append("valor_abs negativo (debería ser siempre ≥ 0)")
+    if (r.get("diferencia_abs")     or 0) < 0: problemas.append("diferencia_abs negativo (debería ser siempre ≥ 0)")
+
+    fecha = (r.get("fecha") or "").strip()
+    if fecha:
+        if not _FECHA_RE.match(fecha):
+            problemas.append("fecha con formato inválido (se espera AAAA-MM-DD)")
+        else:
+            try:
+                f = date.fromisoformat(fecha)
+                if str(r.get("año") or 0) != str(f.year):
+                    problemas.append("año no coincide con la fecha")
+                if str(r.get("mes") or "").zfill(2) != f"{f.month:02d}":
+                    problemas.append("mes no coincide con la fecha")
+                nombre_esperado = MESES_NOMBRE.get(f.month, "")
+                if (r.get("nombre_mes") or "").strip().lower() != nombre_esperado.lower():
+                    problemas.append("nombre_mes no coincide con la fecha")
+            except ValueError:
+                problemas.append("fecha con formato inválido (se espera AAAA-MM-DD)")
+
+    año = r.get("año") or 0
+    if año and (año < 2000 or año > año_actual + 1):
+        problemas.append("año fuera de rango razonable")
+
+    return problemas
+
+
+def _duplicados_logicos(rows: list) -> list:
+    """Mismo material + ubicación + fecha registrado bajo documentos distintos."""
+    grupos = defaultdict(lambda: {"documentos": set(), "ids": []})
+    for r in rows:
+        k = (r.get("material"), r.get("ubicacion"), r.get("fecha"))
+        d = grupos[k]
+        d["documentos"].add(r.get("documento_inventario"))
+        d["ids"].append(r["id"])
+
+    resultado = []
+    for (material, ubicacion, fecha), d in grupos.items():
+        if len(d["documentos"]) > 1:
+            resultado.append({
+                "material":   material,
+                "ubicacion":  ubicacion,
+                "fecha":      fecha,
+                "documentos": sorted(doc for doc in d["documentos"]),
+                "ids":        d["ids"],
+            })
+    return resultado
+
+
+@router.get("/inventario/validacion")
+def validar_calidad_inventario():
+    from database import DB_FILE
+    import sqlite3
+
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    rows = [dict(r) for r in conn.execute("SELECT * FROM inventario_registros").fetchall()]
+    conn.close()
+
+    if not rows:
+        return {
+            "ok": True,
+            "total_registros": 0,
+            "total_con_problemas": 0,
+            "resumen": [],
+            "detalle": [],
+            "duplicados_logicos": [],
+        }
+
+    año_actual = datetime.now().year
+    conteo  = defaultdict(int)
+    detalle = []
+
+    for r in rows:
+        problemas = _validar_registro(r, año_actual)
+        if problemas:
+            for p in problemas:
+                conteo[p] += 1
+            detalle.append({
+                "id":                   r["id"],
+                "documento_inventario": r.get("documento_inventario"),
+                "ubicacion":            r.get("ubicacion"),
+                "material":             r.get("material"),
+                "fecha":                r.get("fecha"),
+                "problemas":            problemas,
+            })
+
+    duplicados = _duplicados_logicos(rows)
+    resumen = [{"problema": p, "cantidad": c} for p, c in sorted(conteo.items(), key=lambda x: -x[1])]
+
+    return {
+        "ok":                  True,
+        "total_registros":     len(rows),
+        "total_con_problemas": len(detalle),
+        "resumen":             resumen,
+        "detalle":             detalle,
+        "duplicados_logicos":  duplicados,
+    }

@@ -7,17 +7,16 @@ import Topbar          from './components/Topbar'
 import ToastContainer  from './components/Toast'
 import Picking from './pages/Picking'
 import SBL     from './pages/SBL'
-
+import Inventario from './pages/Inventario'
+import ControlReclamo from './pages/ControlReclamo'
 import Procesar        from './pages/Procesar'
 import Indicadores     from './pages/Indicadores'
 import Historial       from './pages/Historial'
 import Configuracion   from './pages/Configuracion'
-import WatchFolder     from './pages/WatchFolder'
 import Facturacion from './pages/Facturacion'
 
 import useStore        from './store/index'
 import { getCarriers, getRamas, getHistorial } from './api/index'
-
 
 //  COMPONENTE INTERNO: AppLayout
 //
@@ -59,7 +58,7 @@ function AppLayout() {
 
       } catch (error) {
         console.error('Error cargando datos iniciales:', error)
-        addToast('error', 'No se pudo conectar con el backend. Verifica que esté corriendo en localhost:5000')
+        addToast('error', 'No se pudo conectar con el backend. Verifica que esté corriendo.')
       } finally {
         // finally se ejecuta SIEMPRE — haya error o no
         // Así el spinner de carga siempre se detiene
@@ -99,10 +98,11 @@ function AppLayout() {
             <Route path="/indicadores"   element={<Indicadores />} />
             <Route path="/historial"     element={<Historial />} />
             <Route path="/configuracion" element={<Configuracion />} />
-            <Route path="/watch"         element={<WatchFolder />} />
             <Route path="/facturacion" element={<Facturacion />} />
             <Route path="/picking" element={<Picking />} />
             <Route path="/sbl"     element={<SBL />} />
+            <Route path="/inventario" element={<Inventario />} />
+            <Route path="/control-reclamo" element={<ControlReclamo />} />
             {/* Ruta 404 — cualquier URL desconocida */}
             <Route path="*" element={
               <div className="empty-state">

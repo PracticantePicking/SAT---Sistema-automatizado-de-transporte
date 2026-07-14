@@ -92,13 +92,16 @@ def get_dashboard(
         })
 
     # Ranking por usuario
-    por_usuario = defaultdict(lambda: {"unidades":0,"lineas":0,"tiempo":0,"ordenes":0})
+    por_usuario = defaultdict(lambda: {"unidades":0,"lineas":0,"tiempo":0,"ordenes":0,"fechas":set()})
     for r in registros:
         u = r.get("usuario","")
         por_usuario[u]["unidades"] += r.get("total_unidades",0) or 0
         por_usuario[u]["lineas"]   += r.get("total_lineas",  0) or 0
         por_usuario[u]["tiempo"]   += r.get("tiempo_total",  0) or 0
         por_usuario[u]["ordenes"]  += 1
+        fecha_str = str(r.get("fecha_confirmacion",""))[:10]
+        if fecha_str:
+            por_usuario[u]["fechas"].add(fecha_str)
 
     ranking = []
     for uk, d in por_usuario.items():
@@ -111,6 +114,7 @@ def get_dashboard(
             "uxh":      round(d["unidades"]/t,1) if t>0 else 0,
             "lxh":      round(d["lineas"]  /t,1) if t>0 else 0,
             "ordenes":  d["ordenes"],
+            "dias":     len(d["fechas"]),
         })
     ranking.sort(key=lambda x: x["uxh"], reverse=True)
 

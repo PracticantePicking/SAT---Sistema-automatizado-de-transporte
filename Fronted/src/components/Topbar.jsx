@@ -7,7 +7,6 @@ const PAGE_INFO = {
   '/indicadores':   { titulo: 'Indicadores',          subtitulo: 'Dashboard interactivo de gestión logística' },
   '/historial':     { titulo: 'Historial',            subtitulo: 'Registro de todos los procesamientos' },
   '/configuracion': { titulo: 'Configuración',        subtitulo: 'Gestión de transportadoras y ramas' },
-  '/watch':         { titulo: 'Watch Folder',         subtitulo: 'Automatización de procesamiento' },
 }
 
 function Topbar({ pathname }) {

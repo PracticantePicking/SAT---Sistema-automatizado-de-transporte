@@ -158,6 +158,161 @@ function PanelEjecucion() {
 }
 
 
+// ── Panel calidad de datos ─────────────────────────────────────────────────
+function PanelValidacion() {
+  const [reporte,   setReporte]   = useState(null)
+  const [cargando,  setCargando]  = useState(false)
+  const [verDetalle, setVerDetalle] = useState(false)
+
+  async function validar() {
+    setCargando(true)
+    try {
+      const res  = await fetch(`${BASE_URL}/api/inventario/validacion`)
+      const json = await res.json()
+      setReporte(json)
+      setVerDetalle(false)
+    } catch (e) {
+      alert('Error: ' + e.message)
+    } finally {
+      setCargando(false)
+    }
+  }
+
+  const sinProblemas = reporte && reporte.total_con_problemas === 0 && (reporte.duplicados_logicos || []).length === 0
+
+  return (
+    <div style={{ background: C.card, borderRadius: '12px', border: `1px solid ${C.borde}`, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', marginBottom: '16px' }}>
+      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.borde}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #EEF2FF, #F8FAFC)' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: C.texto }}>🔍 Calidad de Datos</div>
+          <div style={{ fontSize: '0.75rem', color: C.textoMut, marginTop: '2px' }}>Revisa inconsistencias en los registros ya cargados</div>
+        </div>
+        <button
+          onClick={validar}
+          disabled={cargando}
+          style={{
+            background: cargando ? C.textoMut : C.azul,
+            color: '#fff', border: 'none', borderRadius: '8px',
+            padding: '8px 18px', fontSize: '0.82rem', fontWeight: 600,
+            cursor: cargando ? 'not-allowed' : 'pointer',
+          }}>
+          {cargando ? 'Analizando...' : '▶ Analizar'}
+        </button>
+      </div>
+
+      {reporte && (
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '14px', flexWrap: 'wrap', fontSize: '0.82rem' }}>
+            <div><strong>{fmtNum(reporte.total_registros)}</strong> registros totales</div>
+            <div style={{ color: reporte.total_con_problemas > 0 ? C.rojo : C.verde }}>
+              <strong>{fmtNum(reporte.total_con_problemas)}</strong> con problemas
+            </div>
+            {(reporte.duplicados_logicos || []).length > 0 && (
+              <div style={{ color: C.rojo }}>
+                <strong>{reporte.duplicados_logicos.length}</strong> grupos duplicados
+              </div>
+            )}
+          </div>
+
+          {sinProblemas && (
+            <div style={{ fontSize: '0.85rem', color: C.verde, fontWeight: 600 }}>✅ Sin inconsistencias detectadas</div>
+          )}
+
+          {(reporte.resumen || []).length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginBottom: '14px' }}>
+              <thead>
+                <tr style={{ background: C.fondo }}>
+                  <th style={{ padding: '6px 10px', textAlign: 'left', color: C.textoMut, fontSize: '0.7rem', textTransform: 'uppercase' }}>Problema</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'right', color: C.textoMut, fontSize: '0.7rem', textTransform: 'uppercase' }}>Cantidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reporte.resumen.map(r => (
+                  <tr key={r.problema} style={{ borderBottom: `1px solid ${C.borde}` }}>
+                    <td style={{ padding: '6px 10px' }}>{r.problema}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: C.rojo }}>{r.cantidad}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {((reporte.detalle || []).length > 0 || (reporte.duplicados_logicos || []).length > 0) && (
+            <button onClick={() => setVerDetalle(v => !v)} style={{ background: 'transparent', border: 'none', color: C.azul, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+              {verDetalle ? '▲ Ocultar detalle' : '▼ Ver detalle'}
+            </button>
+          )}
+
+          {verDetalle && (
+            <div style={{ marginTop: '12px' }}>
+              {(reporte.duplicados_logicos || []).length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '6px' }}>
+                    Duplicados lógicos (mismo material + ubicación + fecha, distinto documento)
+                  </div>
+                  <div style={{ maxHeight: '200px', overflowY: 'auto', border: `1px solid ${C.borde}`, borderRadius: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                      <thead>
+                        <tr style={{ background: C.fondo }}>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Material</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Ubicación</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Fecha</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Documentos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reporte.duplicados_logicos.map((d, i) => (
+                          <tr key={i} style={{ borderBottom: `1px solid ${C.borde}` }}>
+                            <td style={{ padding: '6px 10px' }}>{d.material}</td>
+                            <td style={{ padding: '6px 10px' }}>{d.ubicacion}</td>
+                            <td style={{ padding: '6px 10px' }}>{d.fecha}</td>
+                            <td style={{ padding: '6px 10px' }}>{d.documentos.join(', ')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {(reporte.detalle || []).length > 0 && (
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '6px' }}>Registros con problemas</div>
+                  <div style={{ maxHeight: '260px', overflowY: 'auto', border: `1px solid ${C.borde}`, borderRadius: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                      <thead>
+                        <tr style={{ background: C.fondo }}>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Documento</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Ubicación</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Material</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Fecha</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left' }}>Problemas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reporte.detalle.map(d => (
+                          <tr key={d.id} style={{ borderBottom: `1px solid ${C.borde}` }}>
+                            <td style={{ padding: '6px 10px' }}>{d.documento_inventario}</td>
+                            <td style={{ padding: '6px 10px' }}>{d.ubicacion}</td>
+                            <td style={{ padding: '6px 10px' }}>{d.material}</td>
+                            <td style={{ padding: '6px 10px' }}>{d.fecha}</td>
+                            <td style={{ padding: '6px 10px', color: C.rojo }}>{d.problemas.join('; ')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 //  PÁGINA PRINCIPAL
 
 
@@ -519,6 +674,9 @@ function Inventario() {
             </div>
           </div>
 
+
+          {/* Panel calidad de datos */}
+          <PanelValidacion />
 
           {/* Panel ejecución */}
           <PanelEjecucion />

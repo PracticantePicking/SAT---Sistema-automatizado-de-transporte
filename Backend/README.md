@@ -35,7 +35,6 @@ Automatizacion_transportadoras/
 │   ├── process.py        # Procesamiento asíncrono con BackgroundTasks
 │   ├── dashboard.py      # Indicadores y métricas con filtros
 │   ├── historial.py      # Historial de procesamientos y descarga
-│   └── watch.py          # Watch Folder — polling automático
 ├── templates/
 │   └── index.html        # Interfaz web SPA
 ├── uploads/              # Archivos Excel cargados (temporal)
@@ -127,13 +126,6 @@ Filtros disponibles: Transportadora, Ciudad, MES, Estado, Numero_Documento, Dest
 - Re-análisis de cualquier procesamiento en el dashboard
 - Eliminación de registros
 
-### Watch Folder
-- Vigilancia automática de carpetas de red (compatible con `Z:\`, rutas UNC)
-- Polling cada 10 segundos (sin watchdog — compatible con discos mapeados)
-- Identificación automática de transportadora por nombre de archivo o columnas
-- Procesamiento por batch con timer configurable (1-15 minutos)
-- Log en tiempo real vía Socket.IO
-
 ### Configuración
 - Gestión de mapeo de columnas por transportadora desde la interfaz web
 - Creación y eliminación de transportadoras personalizadas
@@ -203,10 +195,6 @@ Aplica únicamente a Solistica y Coordinadora.
 | GET | `/api/historial` | Lista de procesamientos |
 | DELETE | `/api/historial/{id}` | Eliminar registro |
 | GET | `/api/download/{filename}` | Descargar Excel generado |
-| GET | `/api/watch` | Estado del Watch Folder |
-| POST | `/api/watch` | Activar / desactivar Watch Folder |
-| POST | `/api/watch/procesar_ahora` | Forzar procesamiento inmediato |
-| POST | `/api/watch/vaciar_cola` | Vaciar cola sin procesar |
 
 ---
 

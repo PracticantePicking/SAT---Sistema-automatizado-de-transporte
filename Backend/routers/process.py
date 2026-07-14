@@ -17,10 +17,12 @@ from fastapi.responses import FileResponse
 
 from config import load_config, UPLOAD_FOLDER, RESULT_FOLDER
 from database import guardar_historial
+from logger import get_logger
 from models import ProcessRequest
 from procesador import procesar_archivos
 
 router    = APIRouter()
+logger    = get_logger("process")
 job_store: dict = {}
 
 
@@ -76,7 +78,7 @@ def _run_job(job_id: str, tasks: list, final_cols: list, rama_id: str = ""):
         }
 
     except Exception as e:
-        print(f"\n❌ ERROR EN JOB {job_id}:\n{traceback.format_exc()}")
+        logger.error("Error en job %s: %s", job_id, traceback.format_exc())
         job_store[job_id]["status"] = "error"
         job_store[job_id]["error"]  = str(e)
 
@@ -134,6 +136,7 @@ def process_status(job_id: str):
 @router.get("/download/{filename}")
 def download_resultado(filename: str):
     """Descarga un archivo Excel generado del folder resultado."""
+    filename = os.path.basename(filename)
     filepath = os.path.join(RESULT_FOLDER, filename)
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")

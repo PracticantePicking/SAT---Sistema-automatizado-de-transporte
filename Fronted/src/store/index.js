@@ -146,20 +146,7 @@ const useStore = create((set, get) => ({
   dashboardData: null,
   setDashboardData: (data) => set({ dashboardData: data }),
 
-  // ══════════════════════════════════════════════════════════════════════
-  //  WATCH FOLDER
-  //  Estado del módulo de automatización
-  // ══════════════════════════════════════════════════════════════════════
-
-  watchStatus: {
-    activo:  false,
-    carpeta: '',
-    espera:  3,
-    cola:    [],
-  },
-  setWatchStatus: (status) => set({ watchStatus: status }),
-
-  // ══════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
   //  UI GLOBAL
   //  Estado de la interfaz que afecta a toda la app
   // ══════════════════════════════════════════════════════════════════════

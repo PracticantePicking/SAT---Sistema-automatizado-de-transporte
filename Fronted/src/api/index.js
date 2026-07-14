@@ -3,8 +3,8 @@ import axios from 'axios'
 // ── URL BASE ──────────────────────────────────────────────────────────────
 // Apunta al backend FastAPI en desarrollo
 // En producción se camba esto a la IP del servidor de Prebel
-const BASE_URL = 'http://localhost:5000'
-
+//const BASE_URL = 'http://localhost:5000' cambio por el .env
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 // ── CLIENTE AXIOS ─────────────────────────────────────────────────────────
 // Creamos una instancia con la URL base ya configurada
 // Así en cada llamada solo escribimos el path: /api/carriers
@@ -155,28 +155,6 @@ export const deleteHistorial = (id) =>
 export const downloadHistorial = (filename) => {
   window.open(`${BASE_URL}/api/download/${filename}`, '_blank')
 }
-
-
-//  WATCH FOLDER
-
-
-// Trae el estado actual del Watch Folder
-// Retorna { activo: bool, carpeta: "...", espera: 3, cola: [] }
-export const getWatchStatus = () =>
-  api.get('/api/watch').then(r => r.data)
-
-// Activa o desactiva el Watch Folder
-// data = { activo: true, carpeta: "Z:\\Descargas", espera: 3, rama_id: "disnal" }
-export const setWatch = (data) =>
-  api.post('/api/watch', data).then(r => r.data)
-
-// Fuerza el procesamiento inmediato sin esperar el timer
-export const procesarAhora = () =>
-  api.post('/api/watch/procesar_ahora').then(r => r.data)
-
-// Vacía la cola de archivos pendientes sin procesarlos
-export const vaciarCola = () =>
-  api.post('/api/watch/vaciar_cola').then(r => r.data)
 
 // ── EXPORT DEFAULT ────────────────────────────────────────────────────────
 // Exportamos también la instancia de axios por si algún componente

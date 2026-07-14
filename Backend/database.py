@@ -3,23 +3,34 @@ import os
 import sqlite3
 from datetime import datetime
 
+from logger import get_logger
+
+_log = get_logger("database")
+
+MESES_ES = {
+    1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril",
+    5:"Mayo", 6:"Junio", 7:"Julio", 8:"Agosto",
+    9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"
+}
+
+
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 DB_FILE       = os.path.join(BASE_DIR, "historial.db")
 RESULT_FOLDER = os.path.join(BASE_DIR, "resultado")
 
 
-# ══════════════════════════════════════════════════════════════════════════
 #  INIT — Crea todas las tablas si no existen
 #
 #  ¿Por qué una sola función init_db()?
 #  Se llama una vez al arrancar el backend (main.py)
 #  Si las tablas ya existen no hace nada — es idempotente
 #  Si es la primera vez las crea todas
-# ══════════════════════════════════════════════════════════════════════════
+
+
 def init_db():
     conn = sqlite3.connect(DB_FILE)
 
-    # ── Tabla historial logístico (ya existente) ──────────────────────────
+    # ── Tabla historial logístico (ya existente) 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historial (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +49,7 @@ def init_db():
     except Exception:
         pass
 
-    # ── Tabla picking ─────────────────────────────────────────────────────
+    # ── Tabla picking 
     # Guarda cada sesión de carga del archivo de Picking
     # Una sesión = un archivo subido con sus métricas calculadas
     conn.execute("""
@@ -48,6 +59,7 @@ def init_db():
             filename      TEXT NOT NULL,
             total_filas   INTEGER DEFAULT 0,
             total_lineas  REAL    DEFAULT 0,
+                 
             total_unidades REAL   DEFAULT 0,
             meta_lineas   REAL    DEFAULT 68,
             meta_unidades REAL    DEFAULT 640,
@@ -59,7 +71,7 @@ def init_db():
         )
     """)
 
-    # ── Tabla SBL ─────────────────────────────────────────────────────────
+    # ── Tabla SBL
     # Guarda cada sesión de carga del archivo de SBL
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sbl_historial (
@@ -85,7 +97,8 @@ def init_db():
 
     init_picking_registros()
     init_sbl2_registros()
-
+    init_inventario_registros()
+    init_control_reclamo()
 #  HISTORIAL LOGÍSTICO — funciones existentes sin cambios
 
 
@@ -181,14 +194,13 @@ def obtener_ultimo_excel(rama: str = "") -> str:
     return os.path.join(RESULT_FOLDER, archivos[0])
 
 
-# ══════════════════════════════════════════════════════════════════════════
 #  PICKING — guardar y obtener historial
 #
 #  ¿Por qué guardar en BD y no solo en memoria?
 #  - El historial persiste aunque se reinicie el servidor
 #  - Permite comparar sesiones anteriores
 #  - El supervisor puede ver la evolución semana a semana
-# ══════════════════════════════════════════════════════════════════════════
+
 
 def guardar_picking(filename, total_filas, metricas):
     """
@@ -384,6 +396,16 @@ def insertar_picking_registros(registros: list) -> dict:
 
     for r in registros:
         try:
+            # Normalizar fecha a ISO (YYYY-MM-DD)
+            fecha_raw = str(r.get("fecha_confirmacion", ""))
+            try:
+                if "/" in fecha_raw:
+                    fecha_norm = datetime.strptime(fecha_raw.strip(), "%d/%m/%Y").strftime("%Y-%m-%d")
+                else:
+                    fecha_norm = fecha_raw[:10]
+            except:
+                fecha_norm = fecha_raw
+
             conn.execute("""
                 INSERT OR IGNORE INTO picking_registros (
                     fecha_confirmacion, numero_orden, usuario,
@@ -393,7 +415,7 @@ def insertar_picking_registros(registros: list) -> dict:
                     fecha_insercion
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                str(r.get("fecha_confirmacion", "")),
+                fecha_norm,
                 str(r.get("numero_orden",        "")),
                 str(r.get("usuario",             "")).strip().upper(),
                 str(r.get("hora_inicio",         "")),
@@ -412,7 +434,7 @@ def insertar_picking_registros(registros: list) -> dict:
             else:
                 skipped += 1
         except Exception as e:
-            print(f"Error insertando registro: {e}")
+            _log.error("Error insertando registro picking: %s", e)
 
     conn.commit()
     conn.close()
@@ -449,9 +471,6 @@ def consultar_picking_registros(
     if fecha:
         query += " AND fecha_confirmacion LIKE ?"
         params.append(f"{fecha}%")
-
-    query += " ORDER BY fecha_confirmacion DESC LIMIT ?"
-    params.append(limit)
 
     rows = conn.execute(query, params).fetchall()
     conn.close()
@@ -522,7 +541,7 @@ def calcular_kpis_picking(registros: list) -> dict:
         "total_ordenes":  total_ordenes,
     }
 
-    # ══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════
 #  SBL2 — registros individuales del script automático AtpPut
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -608,16 +627,80 @@ def insertar_sbl2_registros(registros: list) -> dict:
                 float(r.get("meta",      500) or 500),
                 float(r.get("meta_proy", 0)   or 0),
                 str(r.get("desempeno",   r.get("desempeño","")) or "").strip(),
-                str(r.get("nombre_mes",  "") or ""),
+                MESES_ES.get(int(r.get("mes_num", 0) or 0), str(r.get("nombre_mes", "") or "")),
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             ))
             inserted += 1
         except Exception as e:
-            print(f"Error insertando SBL2: {e}")
+            _log.error("Error insertando SBL2: %s", e)
 
     conn.commit()
     conn.close()
     return {"insertados": inserted, "duplicados": skipped}
+
+
+
+def insertar_control_reclamo(registros: list) -> dict:
+    if not registros:
+        return {"insertados": 0}
+
+    conn     = sqlite3.connect(DB_FILE)
+    inserted = 0
+
+    for r in registros:
+        try:
+            conn.execute("""
+                INSERT INTO control_reclamo (
+                    fecha, nota_credito, factura2, fecha_factura,
+                    codigo_cliente, nombre_cliente, codigo_vendedor, nombre_vendedor,
+                    referencia, marca_referencia, unidades, novedad,
+                    responsable, trazabilidad, unidades_3002, usuario,
+                    tipo_picking, estado, valor, fecha_entrega,
+                    observaciones_transporte, dias_proceso, indicador, ciudad,
+                    canal, ceco, guias, permanencia_dias,
+                    mes, nombre_mes, año, fecha_insercion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                str(r.get("fecha",         "")),
+                str(r.get("nota_credito",  "")),
+                str(r.get("factura2",  "")),
+                str(r.get("fecha_factura",    "")),
+                str(r.get("codigo_cliente",     "")),
+                str(r.get("nombre_cliente",    "")),
+                str(r.get("codigo_vendedor",    "")),
+                str(r.get("nombre_vendedor",     "")),
+                str(r.get("referencia",     "")),
+                str(r.get("marca_referencia",  "")),
+                float(r.get("unidades", 0) or 0),
+                str(r.get("novedad",    "")),
+                str(r.get("responsable",    "")), 
+                str(r.get("trazabilidad", "")),
+                float(r.get("unidades_3002", 0)or 0),
+                str(r.get("usuario",    "")),
+                str(r.get("tipo_picking",   "")),
+                str(r.get("estado",   "")),
+                float(r.get("valor",  0) or 0),
+                str(r.get("fecha_entrega", "")),
+                str(r.get("observaciones_transporte", "")),
+                float(r.get("dias_proceso", 0) or 0),
+                str(r.get("indicador", "")),
+                str(r.get("ciudad", "")),
+                str(r.get("canal", "")),
+                str(r.get("ceco", "")),
+                str(r.get("guias", "")),
+                float(r.get("permanencia_dias", 0) or 0),
+                int(r.get("mes",  0) or 0),
+                str(r.get("nombre_mes",    "")),
+                int(r.get("año", 0) or 0),
+                str(r.get("fecha_insercion", ""))
+            ))
+            inserted += 1
+        except Exception as e:
+            _log.error("Error insertando control_reclamo: %s", e)
+
+    conn.commit()
+    conn.close()
+    return {"insertados": inserted}
 
 
 def consultar_sbl2_registros(
@@ -712,3 +795,140 @@ def calcular_kpis_sbl2(registros: list) -> dict:
         "cumpliendo":      cumpliendo,
         "total_registros": total,
     }
+
+
+def init_inventario_registros():
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS inventario_registros (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            documento_inventario  TEXT,
+            ubicacion             TEXT,
+            material           TEXT,
+            fecha        TEXT,
+            mes      TEXT,
+            año        INTEGER,
+            nombre_mes          TEXT,
+            cantidad_teorica          REAL,
+            cantidad_fisica          REAL,
+            costo_cant_fisica           REAL DEFAULT 0,
+            costo_cant_teorica     REAL DEFAULT 0,
+            diferencia_abs     REAL DEFAULT 0,
+            valor_abs             REAL,
+            clasificacion         TEXT,
+            tipo_material             TEXT,
+            novedad            TEXT,
+            almacen       REAL,
+            fecha_insercion       TEXT,
+            UNIQUE(documento_inventario, ubicacion)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_inv_material ON inventario_registros(material)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_inv_fecha    ON inventario_registros(fecha)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_inv_mes      ON inventario_registros(mes)")
+    conn.commit()
+    conn.close()
+
+def init_control_reclamo():
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS control_reclamo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha            TEXT,
+            nota_credito     TEXT,
+            factura2         TEXT,
+            fecha_factura    TEXT,
+            codigo_cliente   TEXT,
+            nombre_cliente   TEXT,
+            codigo_vendedor   TEXT,
+            nombre_vendedor     TEXT,
+            referencia          TEXT,
+            marca_referencia    TEXT,
+            unidades            REAL,
+            novedad             TEXT,
+            responsable         TEXT,
+            trazabilidad             TEXT,
+            unidades_3002            REAL,
+            usuario                  TEXT,
+            tipo_picking             TEXT,
+            estado                   TEXT,
+            valor                    REAL,
+            fecha_entrega            TEXT,
+            observaciones_transporte TEXT,
+            dias_proceso             REAL,
+            indicador                TEXT,
+            ciudad                   TEXT,
+            canal                    TEXT,
+            ceco                     TEXT,
+            guias                    TEXT,
+            permanencia_dias         REAL,
+            mes                      INTEGER,
+            nombre_mes               TEXT,
+            año                      INTEGER,
+            fecha_insercion          TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_año     ON control_reclamo(año)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_mes     ON control_reclamo(mes)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_canal   ON control_reclamo(canal)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_novedad ON control_reclamo(novedad)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_cliente ON control_reclamo(nombre_cliente)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_usuario ON control_reclamo(usuario)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_factura ON control_reclamo(factura2)")
+    conn.commit()
+    conn.close()
+
+
+def insertar_inventario_registros(registros: list) -> dict:
+    if not registros:
+        return {"insertados": 0, "duplicados": 0}
+
+    conn     = sqlite3.connect(DB_FILE)
+    inserted = 0
+    skipped  = 0
+
+    for r in registros:
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO inventario_registros (
+                    documento_inventario, ubicacion, material,
+                    fecha, mes, año, nombre_mes,
+                    cantidad_teorica, cantidad_fisica,
+                    costo_cant_fisica, costo_cant_teorica,
+                    diferencia_abs, valor_abs,
+                    clasificacion, tipo_material, novedad,
+                    almacen, fecha_insercion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                str(r.get("documento_inventario", "")),
+                str(r.get("ubicacion", "")),
+                str(r.get("material", "")),
+                str(r.get("fecha", "") or ""),
+                str(r.get("mes") or ""),
+                int(r.get("año",   0) or 0),
+                str(r.get("nombre_mes") or ""),
+                float(r.get("cantidad_teorica",0) or 0),
+                float(r.get("cantidad_fisica",0) or 0),
+                float(r.get("costo_cant_fisica",0) or 0),
+                float(r.get("costo_cant_teorica",0) or 0),
+                float(r.get("diferencia_abs", 0) or 0),
+                float(r.get("valor_abs", 0) or 0),
+                str(r.get("clasificacion") or ""),
+                str(r.get("tipo_material") or ""),
+                str(r.get("novedad") or ""),
+                str(r.get("almacen") or ""),
+                str(r.get("fecha_insercion") or "")
+
+            ))
+            if conn.execute("SELECT changes()").fetchone()[0] > 0:
+                inserted += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            _log.error("Error insertando inventario: %s", e)
+
+    conn.commit()
+    conn.close()
+    return {"insertados": inserted, "duplicados": skipped}
+
+
